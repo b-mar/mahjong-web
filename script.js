@@ -91,6 +91,12 @@ addPlayerBtn.onclick = () => {
 };
 
 submitBtn.onclick = () => {
+// ensure the entered scores sum to zero
+  const total = currentScores.reduce((a, b) => a + b, 0);
+  if (total !== 0) {
+    alert("Error: scores must sum to zero! (currently " + total + ")");
+    return;
+  }
   rounds.push([...currentScores]);
   renderScoreInputs();
   roundNumSpan.textContent = (rounds.length + 1).toString();
