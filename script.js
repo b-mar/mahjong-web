@@ -40,15 +40,21 @@ function updateHistory() {
   const header = historyTable.insertRow();
   header.insertCell().textContent = 'Round';
   players.forEach(p => header.insertCell().textContent = p);
+
   rounds.forEach((scores, r) => {
     const row = historyTable.insertRow();
     row.insertCell().textContent = (r + 1).toString();
-    scores.forEach(s => row.insertCell().textContent = s);
+    // handle missing scores as 0
+    players.forEach((_, i) => {
+      const val = scores[i] !== undefined ? scores[i] : 0;
+      row.insertCell().textContent = val;
+    });
   });
+
   const totalRow = historyTable.insertRow();
   totalRow.insertCell().textContent = 'Total';
   players.forEach((_, i) => {
-    const sum = rounds.reduce((acc, sc) => acc + sc[i], 0);
+    const sum = rounds.reduce((acc, sc) => acc + (sc[i] || 0), 0);
     totalRow.insertCell().textContent = sum;
   });
 }
@@ -59,7 +65,8 @@ function updateChart() {
     return {
       label: name,
       data: rounds.map((sc, r) => {
-        cum += sc[i];
+        const delta = sc[i] !== undefined ? sc[i] : 0;
+        cum += delta;
         return { x: r + 1, y: cum };
       }),
       fill: false
@@ -91,7 +98,7 @@ addPlayerBtn.onclick = () => {
 };
 
 submitBtn.onclick = () => {
-// ensure the entered scores sum to zero
+  // ensure the entered scores sum to zero
   const total = currentScores.reduce((a, b) => a + b, 0);
   if (total !== 0) {
     alert("Error: scores must sum to zero! (currently " + total + ")");
