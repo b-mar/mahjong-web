@@ -1,3 +1,15 @@
+// --- FIREBASE SETUP ---
+const firebaseConfig = {
+  apiKey: "...",
+  authDomain: "...",
+  projectId: "...",
+  // (copy these from your Firebase console’s Web App settings)
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const gameDoc = db.collection('games').doc('default'); 
+
+
 // script.js
 const players = [];
 const rounds = [];
