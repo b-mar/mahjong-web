@@ -4,34 +4,17 @@ const firebaseConfig = {
   authDomain: "mahjong-web.firebaseapp.com",
   projectId: "mahjong-web",
 
-  gameDoc.onSnapshot(doc => {
-  if (!doc.exists) {
-    // first run: create the document
-    gameDoc.set({ players: [], rounds: [] });
-    return;
-  }
-  const data = doc.data();
-  // overwrite your in-memory arrays:
-  players.splice(0, players.length, ...data.players);
-  rounds.splice(0, rounds.length, ...data.rounds);
-  // re-render everything
-  renderScoreInputs();
-  roundNumSpan.textContent = (rounds.length + 1).toString();
-  updateChart();
-  updateHistory();
-});
-  
-};
+  // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const gameDoc = db.collection('games').doc('default'); 
+const gameDoc = db.collection('games').doc('default');
 
-
-// script.js
+// Local in-memory state
 const players = [];
 const rounds = [];
 let currentScores = [];
 
+// DOM elements
 const newPlayerInput = document.getElementById('newPlayer');
 const addPlayerBtn   = document.getElementById('addPlayerBtn');
 const scoreInputs    = document.getElementById('scoreInputs');
@@ -40,9 +23,9 @@ const resetBtn       = document.getElementById('resetBtn');
 const roundNumSpan   = document.getElementById('roundNum');
 const historyTable   = document.getElementById('historyTable');
 const ctx            = document.getElementById('chartCanvas').getContext('2d');
+let chart;
 
-let chart;  // Chart.js instance
-
+// Render functions
 function renderScoreInputs() {
   scoreInputs.innerHTML = '';
   currentScores = players.map(_ => 0);
@@ -69,21 +52,17 @@ function updateHistory() {
   const header = historyTable.insertRow();
   header.insertCell().textContent = 'Round';
   players.forEach(p => header.insertCell().textContent = p);
-
   rounds.forEach((scores, r) => {
     const row = historyTable.insertRow();
     row.insertCell().textContent = (r + 1).toString();
-    // handle missing scores as 0
     players.forEach((_, i) => {
       const val = scores[i] !== undefined ? scores[i] : 0;
       row.insertCell().textContent = val;
     });
   });
-
   const totalRow = historyTable.insertRow();
   totalRow.insertCell().textContent = 'Total';
   players.forEach((_, i) => {
-    // sum treating missing as 0
     const sum = rounds.reduce((acc, sc) => acc + (sc[i] !== undefined ? sc[i] : 0), 0);
     totalRow.insertCell().textContent = sum;
   });
@@ -116,6 +95,12 @@ function updateChart() {
   chart = new Chart(ctx, config);
 }
 
+// Sync to Firestore
+function syncToFirestore() {
+  gameDoc.set({ players, rounds });
+}
+
+// Handlers
 addPlayerBtn.onclick = () => {
   const name = newPlayerInput.value.trim();
   if (!name) return;
@@ -125,11 +110,10 @@ addPlayerBtn.onclick = () => {
   roundNumSpan.textContent = (rounds.length + 1).toString();
   updateChart();
   updateHistory();
-  gameDoc.set({ players, rounds });
+  syncToFirestore();
 };
 
 submitBtn.onclick = () => {
-  // ensure the entered scores sum to zero
   const total = currentScores.reduce((a, b) => a + b, 0);
   if (total !== 0) {
     alert(`Error: scores must sum to zero! (currently ${total})`);
@@ -140,7 +124,7 @@ submitBtn.onclick = () => {
   roundNumSpan.textContent = (rounds.length + 1).toString();
   updateChart();
   updateHistory();
-  gameDoc.set({ players, rounds });
+  syncToFirestore();
 };
 
 resetBtn.onclick = () => {
@@ -152,9 +136,26 @@ resetBtn.onclick = () => {
   roundNumSpan.textContent = '1';
   updateChart();
   historyTable.innerHTML = '';
-  gameDoc.set({ players, rounds });
+  syncToFirestore();
 };
 
-// initial render
+// Real-time listener
+gameDoc.onSnapshot(doc => {
+  if (!doc.exists) {
+    gameDoc.set({ players: [], rounds: [] });
+    return;
+  }
+  const data = doc.data();
+  players.splice(0, players.length, ...data.players);
+  rounds.splice(0, rounds.length, ...data.rounds);
+  renderScoreInputs();
+  roundNumSpan.textContent = (rounds.length + 1).toString();
+  updateChart();
+  updateHistory();
+});
+
+// Initial render
 renderScoreInputs();
+roundNumSpan.textContent = (rounds.length + 1).toString();
 updateChart();
+updateHistory();
