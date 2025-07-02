@@ -3,7 +3,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyBudm3kTAmwHikngh4AlmjekoURZTcXqG4",
   authDomain: "mahjong-web.firebaseapp.com",
   projectId: "mahjong-web",
-
+};
   // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
