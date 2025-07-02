@@ -1,8 +1,8 @@
 // --- FIREBASE SETUP ---
 const firebaseConfig = {
-  apiKey: "...",
-  authDomain: "...",
-  projectId: "...",
+  apiKey: "AIzaSyBudm3kTAmwHikngh4AlmjekoURZTcXqG4",
+  authDomain: "mahjong-web.firebaseapp.com",
+  projectId: "mahjong-web",
   // (copy these from your Firebase console’s Web App settings)
 };
 firebase.initializeApp(firebaseConfig);
