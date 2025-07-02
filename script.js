@@ -3,7 +3,24 @@ const firebaseConfig = {
   apiKey: "AIzaSyBudm3kTAmwHikngh4AlmjekoURZTcXqG4",
   authDomain: "mahjong-web.firebaseapp.com",
   projectId: "mahjong-web",
-  // (copy these from your Firebase console’s Web App settings)
+
+  gameDoc.onSnapshot(doc => {
+  if (!doc.exists) {
+    // first run: create the document
+    gameDoc.set({ players: [], rounds: [] });
+    return;
+  }
+  const data = doc.data();
+  // overwrite your in-memory arrays:
+  players.splice(0, players.length, ...data.players);
+  rounds.splice(0, rounds.length, ...data.rounds);
+  // re-render everything
+  renderScoreInputs();
+  roundNumSpan.textContent = (rounds.length + 1).toString();
+  updateChart();
+  updateHistory();
+});
+  
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
@@ -108,6 +125,7 @@ addPlayerBtn.onclick = () => {
   roundNumSpan.textContent = (rounds.length + 1).toString();
   updateChart();
   updateHistory();
+  gameDoc.set({ players, rounds });
 };
 
 submitBtn.onclick = () => {
@@ -122,6 +140,7 @@ submitBtn.onclick = () => {
   roundNumSpan.textContent = (rounds.length + 1).toString();
   updateChart();
   updateHistory();
+  gameDoc.set({ players, rounds });
 };
 
 resetBtn.onclick = () => {
@@ -133,6 +152,7 @@ resetBtn.onclick = () => {
   roundNumSpan.textContent = '1';
   updateChart();
   historyTable.innerHTML = '';
+  gameDoc.set({ players, rounds });
 };
 
 // initial render
