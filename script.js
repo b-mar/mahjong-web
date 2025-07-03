@@ -15,6 +15,7 @@ const gameDoc = db.collection('games').doc('default');
 const players = [];
 const rounds = [];
 let currentScores = [];
+let historyEditing = false;
 
 // DOM elements
 const newPlayerInput = document.getElementById('newPlayer');
@@ -24,10 +25,12 @@ const submitBtn      = document.getElementById('submitBtn');
 const resetBtn       = document.getElementById('resetBtn');
 const roundNumSpan   = document.getElementById('roundNum');
 const historyTable   = document.getElementById('historyTable');
+const editHistoryBtn = document.getElementById('editHistoryBtn');
+const saveHistoryBtn = document.getElementById('saveHistoryBtn');
 const ctx            = document.getElementById('chartCanvas').getContext('2d');
 let chart;
 
-// Render functions
+// Render the score input fields
 function renderScoreInputs() {
   scoreInputs.innerHTML = '';
   currentScores = players.map(() => 0);
@@ -49,6 +52,7 @@ function renderScoreInputs() {
   });
 }
 
+// Update the historical rounds table
 function updateHistory() {
   historyTable.innerHTML = '';
   const header = historyTable.insertRow();
@@ -59,8 +63,20 @@ function updateHistory() {
     const row = historyTable.insertRow();
     row.insertCell().textContent = String(r + 1);
     players.forEach((_, i) => {
+      const cell = row.insertCell();
       const val = scores[i] !== undefined ? scores[i] : 0;
-      row.insertCell().textContent = String(val);
+      if (historyEditing) {
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        inp.value = val;
+        inp.style.width = '4rem';
+        inp.dataset.round = r;
+        inp.dataset.player = i;
+        inp.addEventListener('change', onHistoryEdit);
+        cell.appendChild(inp);
+      } else {
+        cell.textContent = String(val);
+      }
     });
   });
 
@@ -70,8 +86,22 @@ function updateHistory() {
     const sum = rounds.reduce((acc, sc) => acc + (sc[i] !== undefined ? sc[i] : 0), 0);
     totalRow.insertCell().textContent = String(sum);
   });
+
+  // Toggle button visibility
+  editHistoryBtn.style.display = historyEditing ? 'none' : 'inline-block';
+  saveHistoryBtn.style.display = historyEditing ? 'inline-block' : 'none';
 }
 
+// Handler for edits in the history table
+function onHistoryEdit(e) {
+  const r = Number(e.target.dataset.round);
+  const i = Number(e.target.dataset.player);
+  const v = Number(e.target.value);
+  if (!rounds[r]) return;
+  rounds[r][i] = v;
+}
+
+// Update the Chart.js line chart
 function updateChart() {
   const dataSets = players.map((name, i) => {
     let cum = 0;
@@ -122,7 +152,8 @@ function syncToFirestore() {
   gameDoc.set({
     players,
     rounds: roundsToFirestore()
-  }).catch(console.error);
+  }).then(() => updateHistory())
+    .catch(console.error);
 }
 
 // Button handlers
@@ -157,23 +188,36 @@ resetBtn.onclick = () => {
   rounds.length = 0;
   renderScoreInputs();
   roundNumSpan.textContent = '1';
+  historyEditing = false;
   updateHistory();
   updateChart();
   syncToFirestore();
 };
 
-// Real‑time listener (fires on initial load and any changes)
+// Edit & Save handlers
+editHistoryBtn.onclick = () => {
+  historyEditing = true;
+  updateHistory();
+};
+saveHistoryBtn.onclick = () => {
+  historyEditing = false;
+  updateChart();
+  syncToFirestore();
+};
+
+// Real‑time listener (fires on initial load and changes)
 gameDoc.onSnapshot(doc => {
   const data = doc.data() || { players: [], rounds: [] };
   console.log('Firestore snapshot:', data);
-  // Replace local state
   players.splice(0, players.length, ...data.players);
   const fsRounds = Array.isArray(data.rounds) ? data.rounds : [];
-  // Build local rounds array-of-arrays
   const newRounds = roundsFromFirestore(fsRounds);
   rounds.splice(0, rounds.length, ...newRounds);
   renderScoreInputs();
   roundNumSpan.textContent = String(rounds.length + 1);
+  historyEditing = false;
   updateHistory();
   updateChart();
 }, console.error);
+
+// No standalone initial render—UI updates via snapshot
