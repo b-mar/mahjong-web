@@ -4,12 +4,12 @@ const firebaseConfig = {
   authDomain: "mahjong-web.firebaseapp.com",
   projectId: "mahjong-web",
 };
-  // Initialize Firebase
+// Initialize Firebase and Firestore
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const gameDoc = db.collection('games').doc('default');
 
-// Local in-memory state
+// In-memory state
 const players = [];
 const rounds = [];
 let currentScores = [];
@@ -25,10 +25,10 @@ const historyTable   = document.getElementById('historyTable');
 const ctx            = document.getElementById('chartCanvas').getContext('2d');
 let chart;
 
-// Render functions
+// Render the score input fields
 function renderScoreInputs() {
   scoreInputs.innerHTML = '';
-  currentScores = players.map(_ => 0);
+  currentScores = players.map(() => 0);
   players.forEach((name, i) => {
     const div = document.createElement('div');
     div.style.display = 'flex';
@@ -40,6 +40,7 @@ function renderScoreInputs() {
     `;
     scoreInputs.appendChild(div);
   });
+  // Wire up inputs to state
   scoreInputs.querySelectorAll('input').forEach(inp => {
     inp.addEventListener('input', e => {
       currentScores[e.target.dataset.index] = Number(e.target.value);
@@ -47,27 +48,31 @@ function renderScoreInputs() {
   });
 }
 
+// Update the historical rounds table
 function updateHistory() {
   historyTable.innerHTML = '';
   const header = historyTable.insertRow();
   header.insertCell().textContent = 'Round';
   players.forEach(p => header.insertCell().textContent = p);
+
   rounds.forEach((scores, r) => {
     const row = historyTable.insertRow();
-    row.insertCell().textContent = (r + 1).toString();
+    row.insertCell().textContent = String(r + 1);
     players.forEach((_, i) => {
-      const val = scores[i] !== undefined ? scores[i] : 0;
-      row.insertCell().textContent = val;
+      const val = (scores[i] !== undefined ? scores[i] : 0);
+      row.insertCell().textContent = String(val);
     });
   });
+
   const totalRow = historyTable.insertRow();
   totalRow.insertCell().textContent = 'Total';
   players.forEach((_, i) => {
     const sum = rounds.reduce((acc, sc) => acc + (sc[i] !== undefined ? sc[i] : 0), 0);
-    totalRow.insertCell().textContent = sum;
+    totalRow.insertCell().textContent = String(sum);
   });
 }
 
+// Update the Chart.js line chart
 function updateChart() {
   const dataSets = players.map((name, i) => {
     let cum = 0;
@@ -95,67 +100,56 @@ function updateChart() {
   chart = new Chart(ctx, config);
 }
 
-// Sync to Firestore
+// Sync local state to Firestore
 function syncToFirestore() {
-  gameDoc.set({ players, rounds });
+  gameDoc.set({ players, rounds }).catch(console.error);
 }
 
-// Handlers
+// Button handlers
 addPlayerBtn.onclick = () => {
   const name = newPlayerInput.value.trim();
   if (!name) return;
   players.push(name);
   newPlayerInput.value = '';
   renderScoreInputs();
-  roundNumSpan.textContent = (rounds.length + 1).toString();
-  updateChart();
+  roundNumSpan.textContent = String(rounds.length + 1);
   updateHistory();
+  updateChart();
   syncToFirestore();
 };
 
 submitBtn.onclick = () => {
   const total = currentScores.reduce((a, b) => a + b, 0);
   if (total !== 0) {
-    alert(`Error: scores must sum to zero! (currently ${total})`);
+    alert(`Error: scores must sum to zero! Currently ${total}`);
     return;
   }
   rounds.push([...currentScores]);
   renderScoreInputs();
-  roundNumSpan.textContent = (rounds.length + 1).toString();
-  updateChart();
+  roundNumSpan.textContent = String(rounds.length + 1);
   updateHistory();
+  updateChart();
   syncToFirestore();
 };
 
 resetBtn.onclick = () => {
   players.length = 0;
   rounds.length = 0;
-  currentScores = [];
-  newPlayerInput.value = '';
   renderScoreInputs();
   roundNumSpan.textContent = '1';
+  updateHistory();
   updateChart();
-  historyTable.innerHTML = '';
   syncToFirestore();
 };
 
-// Real-time listener
+// Real‑time listener (fires on initial load and any changes)
 gameDoc.onSnapshot(doc => {
-  if (!doc.exists) {
-    gameDoc.set({ players: [], rounds: [] });
-    return;
-  }
-  const data = doc.data();
+  const data = doc.data() || { players: [], rounds: [] };
+  console.log('Firestore snapshot:', data);
   players.splice(0, players.length, ...data.players);
   rounds.splice(0, rounds.length, ...data.rounds);
   renderScoreInputs();
-  roundNumSpan.textContent = (rounds.length + 1).toString();
-  updateChart();
+  roundNumSpan.textContent = String(rounds.length + 1);
   updateHistory();
-});
-
-// Initial render
-renderScoreInputs();
-roundNumSpan.textContent = (rounds.length + 1).toString();
-updateChart();
-updateHistory();
+  updateChart();
+}, console.error);
