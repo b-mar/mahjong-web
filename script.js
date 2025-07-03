@@ -5,7 +5,9 @@ const firebaseConfig = {
   projectId: "mahjong-web",
 };
 // Initialize Firebase and Firestore
-firebase.initializeApp(firebaseConfig);
+try {
+  firebase.initializeApp(firebaseConfig);
+} catch {}
 const db = firebase.firestore();
 const gameDoc = db.collection('games').doc('default');
 
@@ -25,7 +27,7 @@ const historyTable   = document.getElementById('historyTable');
 const ctx            = document.getElementById('chartCanvas').getContext('2d');
 let chart;
 
-// Render the score input fields
+// Render functions
 function renderScoreInputs() {
   scoreInputs.innerHTML = '';
   currentScores = players.map(() => 0);
@@ -40,7 +42,6 @@ function renderScoreInputs() {
     `;
     scoreInputs.appendChild(div);
   });
-  // Wire up inputs to state
   scoreInputs.querySelectorAll('input').forEach(inp => {
     inp.addEventListener('input', e => {
       currentScores[e.target.dataset.index] = Number(e.target.value);
@@ -48,7 +49,6 @@ function renderScoreInputs() {
   });
 }
 
-// Update the historical rounds table
 function updateHistory() {
   historyTable.innerHTML = '';
   const header = historyTable.insertRow();
@@ -59,7 +59,7 @@ function updateHistory() {
     const row = historyTable.insertRow();
     row.insertCell().textContent = String(r + 1);
     players.forEach((_, i) => {
-      const val = (scores[i] !== undefined ? scores[i] : 0);
+      const val = scores[i] !== undefined ? scores[i] : 0;
       row.insertCell().textContent = String(val);
     });
   });
@@ -72,7 +72,6 @@ function updateHistory() {
   });
 }
 
-// Update the Chart.js line chart
 function updateChart() {
   const dataSets = players.map((name, i) => {
     let cum = 0;
@@ -100,9 +99,30 @@ function updateChart() {
   chart = new Chart(ctx, config);
 }
 
+// Convert local rounds array-of-arrays to Firestore-friendly array-of-maps
+function roundsToFirestore() {
+  return rounds.map(scores => {
+    const map = {};
+    players.forEach((player, i) => {
+      map[player] = scores[i] !== undefined ? scores[i] : 0;
+    });
+    return map;
+  });
+}
+
+// Convert Firestore rounds (array-of-maps) back to local array-of-arrays
+function roundsFromFirestore(fsRounds) {
+  return fsRounds.map(map =>
+    players.map(p => Number(map[p] !== undefined ? map[p] : 0))
+  );
+}
+
 // Sync local state to Firestore
 function syncToFirestore() {
-  gameDoc.set({ players, rounds }).catch(console.error);
+  gameDoc.set({
+    players,
+    rounds: roundsToFirestore()
+  }).catch(console.error);
 }
 
 // Button handlers
@@ -146,8 +166,12 @@ resetBtn.onclick = () => {
 gameDoc.onSnapshot(doc => {
   const data = doc.data() || { players: [], rounds: [] };
   console.log('Firestore snapshot:', data);
+  // Replace local state
   players.splice(0, players.length, ...data.players);
-  rounds.splice(0, rounds.length, ...data.rounds);
+  const fsRounds = Array.isArray(data.rounds) ? data.rounds : [];
+  // Build local rounds array-of-arrays
+  const newRounds = roundsFromFirestore(fsRounds);
+  rounds.splice(0, rounds.length, ...newRounds);
   renderScoreInputs();
   roundNumSpan.textContent = String(rounds.length + 1);
   updateHistory();
