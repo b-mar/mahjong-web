@@ -166,10 +166,10 @@ resetBtn.onclick = () => {
 
 editHistoryBtn.onclick = () => {
   historyEditing = true;
-  updateHistory(
+  updateHistory();
     editHistoryBtn.style.display = historyEditing ? 'none'   : 'inline-block';
     saveHistoryBtn.style.display = historyEditing ? 'inline-block' : 'none';
-  );
+  
 };
 
 saveHistoryBtn.onclick = () => {
