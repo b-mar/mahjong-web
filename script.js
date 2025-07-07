@@ -103,8 +103,25 @@ function updateChart() {
   chart = new Chart(ctx, config);
 }
 
-// Firestore transforms\ nfunction roundsToFirestore(){return rounds.map(scores=>players.reduce((m,p,i)=>(m[p]=scores[i]??0,m),{}));}
-function roundsFromFirestore(fs){return fs.map(map=>players.map(p=>Number(map[p]??0)));}
+// Convert local rounds array-of-arrays to Firestore-friendly array-of-maps
+function roundsToFirestore() {
+  return rounds.map(scores => {
+    const map = {};
+    players.forEach((player, i) => {
+      map[player] = scores[i] !== undefined ? scores[i] : 0;
+    });
+    return map;
+  });
+}
+
+// Convert Firestore rounds (array-of-maps) back to local array-of-arrays
+function roundsFromFirestore(fs) {
+  return fs.map(map =>
+    players.map(p => Number(map[p] !== undefined ? map[p] : 0))
+  );
+}
+
+(fs){return fs.map(map=>players.map(p=>Number(map[p]??0)));}
 
 // Sync to Firebase
 function syncToFirestore(){gameDoc.set({players,rounds:roundsToFirestore()}).catch(console.error);}
