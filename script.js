@@ -37,11 +37,16 @@ function renderScoreInputs() {
     div.style.display = 'flex';
     div.style.justifyContent = 'space-between';
     div.style.marginBottom = '0.5rem';
-    div.innerHTML = `<span>${name}</span><input type=\"number\" value=\"0\" style=\"width:4rem;\" data-index=\"${i}\"/>`;
+    div.innerHTML = `
+      <span>${name}</span>
+      <input type="number" value="0" style="width:4rem;" data-index="${i}" />
+    `;
     scoreInputs.appendChild(div);
   });
   scoreInputs.querySelectorAll('input').forEach(inp => {
-    inp.addEventListener('input', e => currentScores[e.target.dataset.index] = Number(e.target.value));
+    inp.addEventListener('input', e => {
+      currentScores[e.target.dataset.index] = Number(e.target.value);
+    });
   });
 }
 
@@ -57,7 +62,7 @@ function updateHistory() {
     row.insertCell().textContent = String(r + 1);
     players.forEach((_, i) => {
       const cell = row.insertCell();
-      const val = scores[i] ?? 0;
+      const val = scores[i] !== undefined ? scores[i] : 0;
       if (historyEditing) {
         const inp = document.createElement('input');
         inp.type = 'number';
@@ -78,32 +83,44 @@ function updateHistory() {
     });
   });
 
+  // Totals row
   const totalRow = historyTable.insertRow();
   totalRow.insertCell().textContent = 'Total';
   players.forEach((_, i) => {
-    const sum = rounds.reduce((acc, sc) => acc + (sc[i] ?? 0), 0);
+    const sum = rounds.reduce((acc, sc) => acc + (sc[i] !== undefined ? sc[i] : 0), 0);
     totalRow.insertCell().textContent = String(sum);
   });
 
-  // toggle buttons
+  // Toggle buttons
   editHistoryBtn.style.display = historyEditing ? 'none' : 'inline-block';
   saveHistoryBtn.style.display = historyEditing ? 'inline-block' : 'none';
 }
 
-// Chart update
+// Update chart
 function updateChart() {
   const dataSets = players.map((name, i) => {
     let cum = 0;
-    return { label: name,
-      data: rounds.map((sc, r) => ({ x: r+1, y: cum += sc[i] ?? 0 })), fill: false
-    };
+    const data = rounds.map((sc, r) => {
+      cum += sc[i] !== undefined ? sc[i] : 0;
+      return { x: r + 1, y: cum };
+    });
+    return { label: name, data, fill: false };
   });
-  const config = { type:'line', data:{datasets:dataSets}, options:{scales:{x:{type:'linear',title:{display:true,text:'Rounds'},ticks:{stepSize:1}},y:{title:{display:true,text:'Cumulative Points'}}}}};
-  chart?.destroy();
+  const config = {
+    type: 'line',
+    data: { datasets: dataSets },
+    options: {
+      scales: {
+        x: { type: 'linear', title: { display: true, text: 'Rounds' }, ticks: { stepSize: 1 } },
+        y: { title: { display: true, text: 'Cumulative Points' } }
+      }
+    }
+  };
+  if (chart) chart.destroy();
   chart = new Chart(ctx, config);
 }
 
-// Convert local rounds array-of-arrays to Firestore-friendly array-of-maps
+// Firestore transforms
 function roundsToFirestore() {
   return rounds.map(scores => {
     const map = {};
@@ -114,23 +131,76 @@ function roundsToFirestore() {
   });
 }
 
-// Convert Firestore rounds (array-of-maps) back to local array-of-arrays
-function roundsFromFirestore(fs) {
-  return fs.map(map =>
+function roundsFromFirestore(fsRounds) {
+  return fsRounds.map(map =>
     players.map(p => Number(map[p] !== undefined ? map[p] : 0))
   );
 }
 
-(fs){return fs.map(map=>players.map(p=>Number(map[p]??0)));}
+// Sync to Firestore
+function syncToFirestore() {
+  gameDoc.set({ players, rounds: roundsToFirestore() }).catch(console.error);
+}
 
-// Sync to Firebase
-function syncToFirestore(){gameDoc.set({players,rounds:roundsToFirestore()}).catch(console.error);}
+// Button handlers
+addPlayerBtn.onclick = () => {
+  const name = newPlayerInput.value.trim();
+  if (!name) return;
+  players.push(name);
+  newPlayerInput.value = '';
+  renderScoreInputs();
+  roundNumSpan.textContent = String(rounds.length + 1);
+  updateHistory();
+  updateChart();
+  syncToFirestore();
+};
 
-// Handlers
-addPlayerBtn.onclick=()=>{const name=newPlayerInput.value.trim();if(!name)return;players.push(name);newPlayerInput.value='';renderScoreInputs();roundNumSpan.textContent=String(rounds.length+1);updateHistory();updateChart();syncToFirestore();};
-submitBtn.onclick=()=>{const total=currentScores.reduce((a,b)=>a+b,0);if(total!==0){alert(`Error: scores must sum to zero! Currently ${total}`);return;}rounds.push([...currentScores]);renderScoreInputs();roundNumSpan.textContent=String(rounds.length+1);updateHistory();updateChart();syncToFirestore();};
-resetBtn.onclick=()=>{players.length=0;rounds.length=0;renderScoreInputs();roundNumSpan.textContent='1';historyEditing=false;updateHistory();updateChart();syncToFirestore();};
-editHistoryBtn.onclick=()=>{historyEditing=true;updateHistory();};
-saveHistoryBtn.onclick=()=>{historyEditing=false;syncToFirestore();updateHistory();};
+submitBtn.onclick = () => {
+  const total = currentScores.reduce((a, b) => a + b, 0);
+  if (total !== 0) {
+    alert(`Error: scores must sum to zero! Currently ${total}`);
+    return;
+  }
+  rounds.push([...currentScores]);
+  renderScoreInputs();
+  roundNumSpan.textContent = String(rounds.length + 1);
+  updateHistory();
+  updateChart();
+  syncToFirestore();
+};
 
-gameDoc.onSnapshot(doc=>{const data=doc.data()||{players:[],rounds:[]};players.splice(0,players.length,...data.players);const fs=data.rounds||[];const newR=roundsFromFirestore(fs);rounds.splice(0,rounds.length,...newR);renderScoreInputs();roundNumSpan.textContent=String(rounds.length+1);historyEditing=false;updateHistory();updateChart();},console.error);
+resetBtn.onclick = () => {
+  players.length = 0;
+  rounds.length = 0;
+  renderScoreInputs();
+  roundNumSpan.textContent = '1';
+  historyEditing = false;
+  updateHistory();
+  updateChart();
+  syncToFirestore();
+};
+
+editHistoryBtn.onclick = () => {
+  historyEditing = true;
+  updateHistory();
+};
+
+saveHistoryBtn.onclick = () => {
+  historyEditing = false;
+  syncToFirestore();
+  updateHistory();
+};
+
+// Real-time listener
+gameDoc.onSnapshot(doc => {
+  const data = doc.data() || { players: [], rounds: [] };
+  players.splice(0, players.length, ...data.players);
+  const fs = Array.isArray(data.rounds) ? data.rounds : [];
+  const newRounds = roundsFromFirestore(fs);
+  rounds.splice(0, rounds.length, ...newRounds);
+  renderScoreInputs();
+  roundNumSpan.textContent = String(rounds.length + 1);
+  historyEditing = false;
+  updateHistory();
+  updateChart();
+}, console.error);
