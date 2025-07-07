@@ -26,6 +26,8 @@ const roundNumSpan   = document.getElementById('roundNum');
 const historyTable   = document.getElementById('historyTable');
 const ctx            = document.getElementById('chartCanvas').getContext('2d');
 let chart;
+const editHistoryBtn = document.getElementById('editHistoryBtn');
+const saveHistoryBtn = document.getElementById('saveHistoryBtn');
 
 // Render functions
 function renderScoreInputs() {
@@ -160,6 +162,20 @@ resetBtn.onclick = () => {
   updateHistory();
   updateChart();
   syncToFirestore();
+};
+
+editHistoryBtn.onclick = () => {
+  historyEditing = true;
+  updateHistory(
+    editHistoryBtn.style.display = historyEditing ? 'none'   : 'inline-block';
+    saveHistoryBtn.style.display = historyEditing ? 'inline-block' : 'none';
+  );
+};
+
+saveHistoryBtn.onclick = () => {
+  historyEditing = false;
+  syncToFirestore();
+  updateHistory();
 };
 
 // Real‑time listener (fires on initial load and any changes)
