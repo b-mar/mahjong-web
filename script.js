@@ -111,7 +111,7 @@ function updateChart() {
     data: { datasets: dataSets },
     options: {
       scales: {
-        x: { type: 'linear', title: { display: true, text: 'Rounds' }, ticks: { stepSize: 1 } },
+        x: { type: 'linear', min: 0, title: { display: true, text: 'Rounds' }, ticks: { stepSize: 1 }  },
         y: { title: { display: true, text: 'Cumulative Points' } }
       }
     }
