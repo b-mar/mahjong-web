@@ -100,10 +100,13 @@ function updateHistory() {
 function updateChart() {
   const dataSets = players.map((name, i) => {
     let cum = 0;
-    const data = rounds.map((sc, r) => {
-      cum += sc[i] !== undefined ? sc[i] : 0;
-      return { x: r + 1, y: cum };
-    });
+    // include an initial (0,0) point
+    const data = [{ x: 0, y: 0 }].concat(
+      rounds.map((sc, r) => {
+        cum += sc[i] !== undefined ? sc[i] : 0;
+        return { x: r + 1, y: cum };
+      })
+    );
     return { label: name, data, fill: false };
   });
   const config = {
@@ -111,11 +114,14 @@ function updateChart() {
     data: { datasets: dataSets },
     options: {
       scales: {
-        x: { type: 'linear', min: 0, title: { display: true, text: 'Rounds' }, ticks: { stepSize: 1 }  },
+        x: { type: 'linear', min: 0, title: { display: true, text: 'Rounds' }, ticks: { stepSize: 1 } },
         y: { title: { display: true, text: 'Cumulative Points' } }
       }
     }
   };
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, config);
+};
   if (chart) chart.destroy();
   chart = new Chart(ctx, config);
 }
