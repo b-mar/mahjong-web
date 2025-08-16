@@ -1,91 +1,48 @@
-<!-- index.html -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>🀄💥💸</title>
-  <!-- firebase -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<!-- Chart.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body { font-family: -apple-system,sans-serif; margin:0; padding:0; }
-    header { display:flex; align-items:center; padding:1rem; }
-    header h1 { flex:1; text-align:center; margin:0; }
-    button { padding:0.5rem 1rem; border:1px solid #888; background:transparent; }
-    main { padding:1rem; overflow-y:auto; height: calc(100vh - 64px); }
-    .section { margin-bottom:2rem; }
-    canvas { max-width:100%; height:auto; }
-  </style>
-</head>
-<body>
-  <header style="display:flex; align-items:center; position:relative; padding:1rem;">
-  <!-- Molly’s picture, sized and pushed to the left -->
-  <img 
-    src="Molly.jpeg" 
-    alt="Molly" 
-    style="height:48px; width:48px; object-fit:cover; border-radius:50%; margin-right:1rem;" 
-  />
+<main>
+  <!-- Simple tabs -->
+  <nav style="display:flex; gap:.5rem; padding:0 1rem; margin-bottom:1rem;">
+    <button id="tabGame">Game</button>
+    <button id="tabHistory">History</button>
+  </nav>
 
-  <!-- Centered title -->
-  <h1 style="flex:1; text-align:center; margin:0;">🀄💥💸</h1>
-
-    <nav style="display:flex; gap:.5rem; padding:0 1rem;">
-  <button id="tabGame">Game</button>
-  <button id="tabHistory">History</button>
-</nav>
-
-    <!-- game tab -->
-
-    <section id="gameTab">
-
-  <!-- Reset button on the right -->
-  <button id="resetBtn">Reset</button>
-</header>
-  <main>
-    <div class="section">
+  <!-- GAME TAB -->
+  <section id="gameTab">
+    <div class="section" id="addPlayerSection">
       <h2>Add Player</h2>
       <input type="text" id="newPlayer" placeholder="Name" />
       <button id="addPlayerBtn">Add</button>
     </div>
-    <div class="section">
+
+    <div class="section" id="scoreEntrySection">
       <h2>Enter Scores (Round <span id="roundNum">1</span>)</h2>
       <div id="scoreInputs"></div>
       <button id="submitBtn">Submit</button>
     </div>
-    <div class="section">
+
+    <div class="section" id="chartSection">
       <h2>Chart</h2>
       <canvas id="chartCanvas"></canvas>
     </div>
-    <div class="section">
-     <div class="section" id="historySection">
-     
-      <h2>Historical Rounds</h2>
-      <div id="historyControls" style="padding:0 1rem; margin-bottom:0.5rem;">
+
+    <div class="section" id="historySection">
+      <!-- edit/save controls for per-game history table -->
+      <div id="historyControls" style="margin-bottom:0.5rem;">
         <button id="editHistoryBtn">Edit</button>
         <button id="saveHistoryBtn" style="display:none;">Save</button>
-        </div>
-      <table id="historyTable" border="1" cellpadding="4" style="margin:0 1rem;"></table>
-     
-     </div>
+      </div>
+      <h2>Historical Rounds</h2>
+      <table id="historyTable" border="1" cellpadding="4"></table>
     </div>
-  </main>
-  <script src="script.js"></script>
-    <div style="margin-top:1rem;">
-    <button id="appendHistoryBtn">Add to History</button>
-  </div>
-</section>
 
-<!-- history tab -->
-  
-<section id="historyTab" style="display:none; padding:0 1rem;">
-  <h2>All History</h2>
-  <table id="masterHistoryTable" border="1" cellpadding="4"></table>
-</section>
+    <!-- Add to History button -->
+    <div style="margin:1rem 0;">
+      <button id="appendHistoryBtn">Add to History</button>
+    </div>
+  </section>
 
-  
-</body>
-</html>
-
+  <!-- BIG RUNNING HISTORY TAB -->
+  <section id="historyTab" style="display:none; padding:0 1rem;">
+    <h2>All History</h2>
+    <table id="masterHistoryTable" border="1" cellpadding="4"></table>
+  </section>
+</main>
