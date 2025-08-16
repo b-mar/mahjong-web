@@ -35,15 +35,17 @@
 
     <!-- GAME TAB -->
 
-      <nav>
-      <button id="resetBtn">Reset</button>
-    </nav>
     <section id="gameTab">
       <div class="section" id="addPlayerSection">
         <h2>Add Player</h2>
         <input type="text" id="newPlayer" placeholder="Name" />
         <button id="addPlayerBtn">Add</button>
       </div>
+
+      <!-- Inside <section id="gameTab"> … just above or below Add to History -->
+<div class="section" style="margin:1rem 0;">
+  <button id="newGameBtn">New Game</button>
+</div>
 
       <div class="section" id="scoreEntrySection">
         <h2>Enter Scores (Round <span id="roundNum">1</span>)</h2>
