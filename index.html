@@ -32,6 +32,14 @@
   <!-- Centered title -->
   <h1 style="flex:1; text-align:center; margin:0;">🀄💥💸</h1>
 
+    <nav style="display:flex; gap:.5rem; padding:0 1rem;">
+  <button id="tabGame">Game</button>
+  <button id="tabHistory">History</button>
+</nav>
+
+
+    <section id="gameTab">
+
   <!-- Reset button on the right -->
   <button id="resetBtn">Reset</button>
 </header>
@@ -64,5 +72,17 @@
     </div>
   </main>
   <script src="script.js"></script>
+    <div style="margin-top:1rem;">
+    <button id="appendHistoryBtn">Add to History</button>
+  </div>
+</section>
+
+<section id="historyTab" style="display:none; padding:0 1rem;">
+  <h2>All History</h2>
+  <table id="masterHistoryTable" border="1" cellpadding="4"></table>
+</section>
+
+  
 </body>
 </html>
+
