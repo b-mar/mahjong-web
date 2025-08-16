@@ -14,6 +14,7 @@ const players = [];
 const rounds = [];
 let currentScores = [];
 let historyEditing = false;
+let historyLog = []; // large running history table (array of arrays)
 
 // DOM elements
 const newPlayerInput = document.getElementById('newPlayer');
@@ -25,10 +26,18 @@ const roundNumSpan   = document.getElementById('roundNum');
 const historyTable   = document.getElementById('historyTable');
 const editHistoryBtn = document.getElementById('editHistoryBtn');
 const saveHistoryBtn = document.getElementById('saveHistoryBtn');
-const ctx            = document.getElementById('chartCanvas').getContext('2d');
+const appendHistoryBtn = document.getElementById('appendHistoryBtn');
+const masterHistoryTable = document.getElementById('masterHistoryTable');
+// simple tabs (optional if not in HTML yet)
+const tabGameBtn = document.getElementById('tabGame');
+const tabHistoryBtn = document.getElementById('tabHistory');
+const gameTabSection = document.getElementById('gameTab');
+const historyTabSection = document.getElementById('historyTab');
+
+const ctx = document.getElementById('chartCanvas').getContext('2d');
 let chart;
 
-// Render score inputs
+// ---------------- RENDERING ----------------
 function renderScoreInputs() {
   scoreInputs.innerHTML = '';
   currentScores = players.map(() => 0);
@@ -50,7 +59,6 @@ function renderScoreInputs() {
   });
 }
 
-// Update history table
 function updateHistory() {
   historyTable.innerHTML = '';
   const header = historyTable.insertRow();
@@ -62,7 +70,7 @@ function updateHistory() {
     row.insertCell().textContent = String(r + 1);
     players.forEach((_, i) => {
       const cell = row.insertCell();
-      const val = scores[i] !== undefined ? scores[i] : 0;
+      const val = (scores[i] !== undefined ? scores[i] : 0);
       if (historyEditing) {
         const inp = document.createElement('input');
         inp.type = 'number';
@@ -83,7 +91,6 @@ function updateHistory() {
     });
   });
 
-  // Totals row
   const totalRow = historyTable.insertRow();
   totalRow.insertCell().textContent = 'Total';
   players.forEach((_, i) => {
@@ -91,16 +98,15 @@ function updateHistory() {
     totalRow.insertCell().textContent = String(sum);
   });
 
-  // Toggle buttons
-  editHistoryBtn.style.display = historyEditing ? 'none' : 'inline-block';
-  saveHistoryBtn.style.display = historyEditing ? 'inline-block' : 'none';
+  if (editHistoryBtn && saveHistoryBtn) {
+    editHistoryBtn.style.display = historyEditing ? 'none' : 'inline-block';
+    saveHistoryBtn.style.display = historyEditing ? 'inline-block' : 'none';
+  }
 }
 
-// Update chart
 function updateChart() {
   const dataSets = players.map((name, i) => {
     let cum = 0;
-    // include an initial (0,0) point
     const data = [{ x: 0, y: 0 }].concat(
       rounds.map((sc, r) => {
         cum += sc[i] !== undefined ? sc[i] : 0;
@@ -121,35 +127,53 @@ function updateChart() {
   };
   if (chart) chart.destroy();
   chart = new Chart(ctx, config);
-};
-  if (chart) chart.destroy();
-  chart = new Chart(ctx, config);
 }
 
-// Firestore transforms
-function roundsToFirestore() {
-  return rounds.map(scores => {
-    const map = {};
-    players.forEach((player, i) => {
-      map[player] = scores[i] !== undefined ? scores[i] : 0;
+function updateMasterHistory() {
+  if (!masterHistoryTable) return; // guard if HTML not added yet
+  masterHistoryTable.innerHTML = '';
+  const header = masterHistoryTable.insertRow();
+  header.insertCell().textContent = 'Row';
+  players.forEach(p => header.insertCell().textContent = p);
+  historyLog.forEach((scores, idx) => {
+    const row = masterHistoryTable.insertRow();
+    row.insertCell().textContent = String(idx + 1);
+    players.forEach((_, i) => {
+      const val = (scores[i] !== undefined ? scores[i] : 0);
+      row.insertCell().textContent = String(val);
     });
-    return map;
   });
 }
 
+// ---------------- FIRESTORE TRANSFORMS ----------------
+function roundsToFirestore() {
+  return rounds.map(scores => {
+    const map = {};
+    players.forEach((player, i) => { map[player] = (scores[i] !== undefined ? scores[i] : 0); });
+    return map;
+  });
+}
 function roundsFromFirestore(fsRounds) {
-  return fsRounds.map(map =>
-    players.map(p => Number(map[p] !== undefined ? map[p] : 0))
-  );
+  return fsRounds.map(map => players.map(p => Number(map[p] !== undefined ? map[p] : 0)));
+}
+function historyToFirestore() {
+  return historyLog.map(scores => {
+    const map = {};
+    players.forEach((player, i) => { map[player] = (scores[i] !== undefined ? scores[i] : 0); });
+    return map;
+  });
+}
+function historyFromFirestore(fsHist) {
+  return fsHist.map(map => players.map(p => Number(map[p] !== undefined ? map[p] : 0)));
 }
 
-// Sync to Firestore
+// ---------------- SYNC ----------------
 function syncToFirestore() {
-  gameDoc.set({ players, rounds: roundsToFirestore() }).catch(console.error);
+  gameDoc.set({ players, rounds: roundsToFirestore(), history: historyToFirestore() }).catch(console.error);
 }
 
-// Button handlers
-addPlayerBtn.onclick = () => {
+// ---------------- HANDLERS ----------------
+if (addPlayerBtn) addPlayerBtn.onclick = () => {
   const name = newPlayerInput.value.trim();
   if (!name) return;
   players.push(name);
@@ -161,7 +185,7 @@ addPlayerBtn.onclick = () => {
   syncToFirestore();
 };
 
-submitBtn.onclick = () => {
+if (submitBtn) submitBtn.onclick = () => {
   const total = currentScores.reduce((a, b) => a + b, 0);
   if (total !== 0) {
     alert(`Error: scores must sum to zero! Currently ${total}`);
@@ -175,38 +199,67 @@ submitBtn.onclick = () => {
   syncToFirestore();
 };
 
-resetBtn.onclick = () => {
+if (resetBtn) resetBtn.onclick = () => {
   players.length = 0;
   rounds.length = 0;
+  historyLog.length = 0;
   renderScoreInputs();
   roundNumSpan.textContent = '1';
   historyEditing = false;
   updateHistory();
+  updateMasterHistory();
   updateChart();
   syncToFirestore();
 };
 
-editHistoryBtn.onclick = () => {
-  historyEditing = true;
-  updateHistory();
-};
+if (editHistoryBtn) editHistoryBtn.onclick = () => { historyEditing = true; updateHistory(); };
+if (saveHistoryBtn) saveHistoryBtn.onclick = () => { historyEditing = false; syncToFirestore(); updateHistory(); };
 
-saveHistoryBtn.onclick = () => {
-  historyEditing = false;
+if (appendHistoryBtn) appendHistoryBtn.onclick = () => {
+  if (rounds.length === 0) { alert('No rounds to add.'); return; }
+  // Append a copy of current rounds into the big history log
+  rounds.forEach(row => {
+    const copy = players.map((_, i) => (row[i] !== undefined ? row[i] : 0));
+    historyLog.push(copy);
+  });
+  // Optional: clear current rounds to avoid double-logging next time
+  rounds.length = 0;
+  renderScoreInputs();
+  roundNumSpan.textContent = '1';
+  updateHistory();
+  updateMasterHistory();
+  updateChart();
   syncToFirestore();
-  updateHistory();
 };
 
-// Real-time listener
+// Tabs (optional)
+function showGame() {
+  if (!gameTabSection || !historyTabSection) return;
+  gameTabSection.style.display = 'block';
+  historyTabSection.style.display = 'none';
+}
+function showHistory() {
+  if (!gameTabSection || !historyTabSection) return;
+  gameTabSection.style.display = 'none';
+  historyTabSection.style.display = 'block';
+}
+if (tabGameBtn) tabGameBtn.onclick = showGame;
+if (tabHistoryBtn) tabHistoryBtn.onclick = showHistory;
+
+// ---------------- SNAPSHOT ----------------
 gameDoc.onSnapshot(doc => {
-  const data = doc.data() || { players: [], rounds: [] };
+  const data = doc.data() || { players: [], rounds: [], history: [] };
   players.splice(0, players.length, ...data.players);
-  const fs = Array.isArray(data.rounds) ? data.rounds : [];
-  const newRounds = roundsFromFirestore(fs);
+  const fsRounds = Array.isArray(data.rounds) ? data.rounds : [];
+  const fsHist = Array.isArray(data.history) ? data.history : [];
+  const newRounds = roundsFromFirestore(fsRounds);
+  const newHist = historyFromFirestore(fsHist);
   rounds.splice(0, rounds.length, ...newRounds);
+  historyLog.splice(0, historyLog.length, ...newHist);
   renderScoreInputs();
   roundNumSpan.textContent = String(rounds.length + 1);
   historyEditing = false;
   updateHistory();
+  updateMasterHistory();
   updateChart();
 }, console.error);
