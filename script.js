@@ -10,29 +10,33 @@ const db = firebase.firestore();
 const gameDoc = db.collection('games').doc('default');
 
 // In-memory state
-const players = [];
-const rounds = [];
+const players = [];          // current game players (columns in game table & chart)
+const rounds = [];           // current game rounds (array of arrays aligned to `players`)
 let currentScores = [];
 let historyEditing = false;
-let historyLog = []; // large running history table (array of arrays)
+
+let historyPlayers = [];     // ALL-TIME columns (stable order for History tab)
+let historyLog = [];         // ALL-TIME rows (array of arrays aligned to `historyPlayers`)
 
 // DOM elements
 const newPlayerInput = document.getElementById('newPlayer');
 const addPlayerBtn   = document.getElementById('addPlayerBtn');
 const scoreInputs    = document.getElementById('scoreInputs');
 const submitBtn      = document.getElementById('submitBtn');
-const resetBtn       = document.getElementById('resetBtn');
+// ⬇️ removed resetBtn
 const roundNumSpan   = document.getElementById('roundNum');
 const historyTable   = document.getElementById('historyTable');
 const editHistoryBtn = document.getElementById('editHistoryBtn');
 const saveHistoryBtn = document.getElementById('saveHistoryBtn');
 const appendHistoryBtn = document.getElementById('appendHistoryBtn');
 const masterHistoryTable = document.getElementById('masterHistoryTable');
-// simple tabs (optional if not in HTML yet)
+// tabs (if present)
 const tabGameBtn = document.getElementById('tabGame');
 const tabHistoryBtn = document.getElementById('tabHistory');
 const gameTabSection = document.getElementById('gameTab');
 const historyTabSection = document.getElementById('historyTab');
+// NEW: New Game button
+const newGameBtn = document.getElementById('newGameBtn');
 
 const ctx = document.getElementById('chartCanvas').getContext('2d');
 let chart;
@@ -130,18 +134,44 @@ function updateChart() {
 }
 
 function updateMasterHistory() {
-  if (!masterHistoryTable) return; // guard if HTML not added yet
+  if (!masterHistoryTable) return;
   masterHistoryTable.innerHTML = '';
   const header = masterHistoryTable.insertRow();
   header.insertCell().textContent = 'Row';
-  players.forEach(p => header.insertCell().textContent = p);
-  historyLog.forEach((scores, idx) => {
+  historyPlayers.forEach(p => header.insertCell().textContent = p);
+  historyLog.forEach((rowVals, idx) => {
     const row = masterHistoryTable.insertRow();
     row.insertCell().textContent = String(idx + 1);
-    players.forEach((_, i) => {
-      const val = (scores[i] !== undefined ? scores[i] : 0);
+    historyPlayers.forEach((_, i) => {
+      const val = rowVals[i] !== undefined ? rowVals[i] : 0;
       row.insertCell().textContent = String(val);
     });
+  });
+}
+
+// ---------------- HELPERS (HISTORY) ----------------
+function ensureHistoryColumns(currPlayers) {
+  // Add any new players; backfill zero for existing rows
+  currPlayers.forEach(p => {
+    if (!historyPlayers.includes(p)) {
+      historyPlayers.push(p);
+      historyLog.forEach(r => r.push(0));
+    }
+  });
+}
+
+function appendCurrentRoundsToHistory() {
+  if (rounds.length === 0) return;
+  ensureHistoryColumns(players);
+
+  rounds.forEach(roundRow => {
+    const histRow = historyPlayers.map(() => 0);
+    players.forEach((p, i) => {
+      const col = historyPlayers.indexOf(p);
+      const v = roundRow[i] !== undefined ? roundRow[i] : 0;
+      histRow[col] = v;
+    });
+    historyLog.push(histRow);
   });
 }
 
@@ -156,20 +186,38 @@ function roundsToFirestore() {
 function roundsFromFirestore(fsRounds) {
   return fsRounds.map(map => players.map(p => Number(map[p] !== undefined ? map[p] : 0)));
 }
+
 function historyToFirestore() {
-  return historyLog.map(scores => {
+  return historyLog.map(rowArr => {
     const map = {};
-    players.forEach((player, i) => { map[player] = (scores[i] !== undefined ? scores[i] : 0); });
+    historyPlayers.forEach((name, i) => { map[name] = (rowArr[i] !== undefined ? rowArr[i] : 0); });
     return map;
   });
 }
 function historyFromFirestore(fsHist) {
-  return fsHist.map(map => players.map(p => Number(map[p] !== undefined ? map[p] : 0)));
+  return fsHist.map(rowMap =>
+    historyPlayers.map(name => Number(rowMap[name] !== undefined ? rowMap[name] : 0))
+  );
+}
+function deriveHistoryPlayersFromMaps(fsHist) {
+  const seen = new Set();
+  const order = [];
+  fsHist.forEach(m => {
+    Object.keys(m || {}).forEach(k => {
+      if (!seen.has(k)) { seen.add(k); order.push(k); }
+    });
+  });
+  return order;
 }
 
 // ---------------- SYNC ----------------
 function syncToFirestore() {
-  gameDoc.set({ players, rounds: roundsToFirestore(), history: historyToFirestore() }).catch(console.error);
+  gameDoc.set({
+    players,
+    rounds: roundsToFirestore(),
+    historyPlayers,
+    history: historyToFirestore()
+  }, { merge: true }).catch(console.error);
 }
 
 // ---------------- HANDLERS ----------------
@@ -199,17 +247,21 @@ if (submitBtn) submitBtn.onclick = () => {
   syncToFirestore();
 };
 
-if (resetBtn) resetBtn.onclick = () => {
-  players.length = 0;
-  rounds.length = 0;
-  historyLog.length = 0;
+// NEW GAME: only clears current game; History is preserved
+if (newGameBtn) newGameBtn.onclick = () => {
+  players.length = 0;        // clear roster for the new game
+  rounds.length = 0;         // clear per-round scores
+  currentScores = [];        // clear inputs
+
   renderScoreInputs();
   roundNumSpan.textContent = '1';
   historyEditing = false;
   updateHistory();
-  updateMasterHistory();
+  updateMasterHistory();     // unchanged, but re-render to be safe
   updateChart();
-  syncToFirestore();
+
+  // Persist only players + rounds; do NOT touch history/historyPlayers
+  gameDoc.set({ players: [], rounds: [] }, { merge: true }).catch(console.error);
 };
 
 if (editHistoryBtn) editHistoryBtn.onclick = () => { historyEditing = true; updateHistory(); };
@@ -217,12 +269,8 @@ if (saveHistoryBtn) saveHistoryBtn.onclick = () => { historyEditing = false; syn
 
 if (appendHistoryBtn) appendHistoryBtn.onclick = () => {
   if (rounds.length === 0) { alert('No rounds to add.'); return; }
-  // Append a copy of current rounds into the big history log
-  rounds.forEach(row => {
-    const copy = players.map((_, i) => (row[i] !== undefined ? row[i] : 0));
-    historyLog.push(copy);
-  });
-  // Optional: clear current rounds to avoid double-logging next time
+  appendCurrentRoundsToHistory();
+  // Optional: clear current game after appending to avoid double-logging
   rounds.length = 0;
   renderScoreInputs();
   roundNumSpan.textContent = '1';
@@ -248,14 +296,26 @@ if (tabHistoryBtn) tabHistoryBtn.onclick = showHistory;
 
 // ---------------- SNAPSHOT ----------------
 gameDoc.onSnapshot(doc => {
-  const data = doc.data() || { players: [], rounds: [], history: [] };
+  const data = doc.data() || { players: [], rounds: [], historyPlayers: [], history: [] };
+
+  // Current game
   players.splice(0, players.length, ...data.players);
   const fsRounds = Array.isArray(data.rounds) ? data.rounds : [];
-  const fsHist = Array.isArray(data.history) ? data.history : [];
   const newRounds = roundsFromFirestore(fsRounds);
-  const newHist = historyFromFirestore(fsHist);
   rounds.splice(0, rounds.length, ...newRounds);
+
+  // All-time history
+  const fsHist = Array.isArray(data.history) ? data.history : [];
+  const incomingHistPlayers = Array.isArray(data.historyPlayers) && data.historyPlayers.length
+    ? data.historyPlayers
+    : deriveHistoryPlayersFromMaps(fsHist);
+
+  historyPlayers.splice(0, historyPlayers.length, ...incomingHistPlayers);
+
+  const newHist = historyFromFirestore(fsHist);
   historyLog.splice(0, historyLog.length, ...newHist);
+
+  // Re-render
   renderScoreInputs();
   roundNumSpan.textContent = String(rounds.length + 1);
   historyEditing = false;
