@@ -1,285 +1,82 @@
-// --- FIREBASE SETUP ---
-const firebaseConfig = {
-  apiKey: "AIzaSyBudm3kTAmwHikngh4AlmjekoURZTcXqG4",
-  authDomain: "mahjong-web.firebaseapp.com",
-  projectId: "mahjong-web",
-};
-try { firebase.initializeApp(firebaseConfig); } catch {}
-const db = firebase.firestore();
-const gameDoc = db.collection('games').doc('default');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>🀄💥💸</title>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: -apple-system, sans-serif; margin:0; padding:0; }
+    header { display:flex; align-items:center; padding:1rem; }
+    header h1 { flex:1; text-align:center; margin:0; }
+    button { padding:0.5rem 1rem; border:1px solid #888; background:transparent; cursor:pointer; }
+    main { padding:1rem; overflow-y:auto; height: calc(100vh - 64px); }
+    .section { margin-bottom:2rem; }
+    canvas { max-width:100%; height:auto; }
+    nav { margin-bottom: 1rem; }
+    nav button { margin-right: .5rem; }
+    #historyControls { margin-bottom: .5rem; }
+    #historyTable input { width: 4rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="Molly.jpeg" alt="Molly" style="height:48px;width:48px;object-fit:cover;border-radius:50%;margin-right:1rem;" />
+    <h1>🀄💥💸</h1>
+    <div style="display:flex; gap:.5rem;">
+      <button id="tabGame">Game</button>
+      <button id="tabHistory">History</button>
+    </div>
+  </header>
 
-// ---------------- STATE ----------------
-const players = [];
-const rounds = [];
-let currentScores = [];
-let historyEditing = false;
-let historyLog = []; // big running history (History tab)
+    <!-- GAME TAB -->
 
-// ---------------- DOM ----------------
-const newPlayerInput = document.getElementById('newPlayer');
-const addPlayerBtn   = document.getElementById('addPlayerBtn');
-const scoreInputs    = document.getElementById('scoreInputs');
-const submitBtn      = document.getElementById('submitBtn');
-const resetBtn       = document.getElementById('resetBtn');
-const roundNumSpan   = document.getElementById('roundNum');
-const historyTable   = document.getElementById('historyTable');
-const editHistoryBtn = document.getElementById('editHistoryBtn');
-const saveHistoryBtn = document.getElementById('saveHistoryBtn');
-const appendHistoryBtn = document.getElementById('appendHistoryBtn');
-const masterHistoryTable = document.getElementById('masterHistoryTable');
-const tabGameBtn = document.getElementById('tabGame');
-const tabHistoryBtn = document.getElementById('tabHistory');
-const gameTabSection = document.getElementById('gameTab');
-const historyTabSection = document.getElementById('historyTab');
-const ctx = document.getElementById('chartCanvas').getContext('2d');
-let chart;
+      <nav>
+      <button id="resetBtn">Reset</button>
+    </nav>
+    <section id="gameTab">
+      <div class="section" id="addPlayerSection">
+        <h2>Add Player</h2>
+        <input type="text" id="newPlayer" placeholder="Name" />
+        <button id="addPlayerBtn">Add</button>
+      </div>
 
-// ---------------- RENDER: SCORE INPUTS ----------------
-function renderScoreInputs() {
-  scoreInputs.innerHTML = '';
-  currentScores = players.map(() => 0);
-  players.forEach((name, i) => {
-    const div = document.createElement('div');
-    div.style.display = 'flex';
-    div.style.justifyContent = 'space-between';
-    div.style.marginBottom = '0.5rem';
-    div.innerHTML = `<span>${name}</span><input type="number" value="0" style="width:4rem;" data-index="${i}" />`;
-    scoreInputs.appendChild(div);
-  });
-  scoreInputs.querySelectorAll('input').forEach(inp => {
-    inp.addEventListener('input', e => {
-      currentScores[e.target.dataset.index] = Number(e.target.value);
-    });
-  });
-}
+      <div class="section" id="scoreEntrySection">
+        <h2>Enter Scores (Round <span id="roundNum">1</span>)</h2>
+        <div id="scoreInputs"></div>
+        <button id="submitBtn">Submit</button>
+      </div>
 
-// ---------------- RENDER: PER-GAME HISTORY ----------------
-function updateHistory() {
-  historyTable.innerHTML = '';
-  const header = historyTable.insertRow();
-  header.insertCell().textContent = 'Round';
-  players.forEach(p => header.insertCell().textContent = p);
+      <div class="section" id="chartSection">
+        <h2>Chart</h2>
+        <canvas id="chartCanvas"></canvas>
+      </div>
 
-  rounds.forEach((scores, r) => {
-    const row = historyTable.insertRow();
-    row.insertCell().textContent = String(r + 1);
-    players.forEach((_, i) => {
-      const cell = row.insertCell();
-      const val = scores[i] !== undefined ? scores[i] : 0;
-      if (historyEditing) {
-        const inp = document.createElement('input');
-        inp.type = 'number';
-        inp.value = val;
-        inp.style.width = '4rem';
-        inp.dataset.round = r;
-        inp.dataset.player = i;
-        inp.addEventListener('input', e => {
-          const rIdx = Number(e.target.dataset.round);
-          const pIdx = Number(e.target.dataset.player);
-          rounds[rIdx][pIdx] = Number(e.target.value);
-          updateChart();
-        });
-        cell.appendChild(inp);
-      } else {
-        cell.textContent = String(val);
-      }
-    });
-  });
+      <div class="section" id="historySection">
+        <div id="historyControls">
+          <button id="editHistoryBtn">Edit</button>
+          <button id="saveHistoryBtn" style="display:none;">Save</button>
+        </div>
+        <h2>Historical Rounds</h2>
+        <table id="historyTable" border="1" cellpadding="4"></table>
+      </div>
 
-  const totalRow = historyTable.insertRow();
-  totalRow.insertCell().textContent = 'Total';
-  players.forEach((_, i) => {
-    const sum = rounds.reduce((acc, sc) => acc + (sc[i] !== undefined ? sc[i] : 0), 0);
-    totalRow.insertCell().textContent = String(sum);
-  });
+      <div style="margin:1rem 0;">
+        <button id="appendHistoryBtn">Add to History</button>
+      </div>
+    </section>
 
-  if (editHistoryBtn && saveHistoryBtn) {
-    editHistoryBtn.style.display = historyEditing ? 'none' : 'inline-block';
-    saveHistoryBtn.style.display = historyEditing ? 'inline-block' : 'none';
-  }
-}
+    <!-- BIG RUNNING HISTORY TAB -->
+    <section id="historyTab" style="display:none;">
+      <h2>All History</h2>
+      <table id="masterHistoryTable" border="1" cellpadding="4"></table>
+    </section>
+  </main>
 
-// ---------------- RENDER: BIG HISTORY (History tab) ----------------
-function updateMasterHistory() {
-  if (!masterHistoryTable) return;
-  masterHistoryTable.innerHTML = '';
-  const header = masterHistoryTable.insertRow();
-  header.insertCell().textContent = 'Row';
-  players.forEach(p => header.insertCell().textContent = p);
-  historyLog.forEach((scores, idx) => {
-    const row = masterHistoryTable.insertRow();
-    row.insertCell().textContent = String(idx + 1);
-    players.forEach((_, i) => {
-      row.insertCell().textContent = String(scores[i] !== undefined ? scores[i] : 0);
-    });
-  });
-}
-
-// ---------------- CHART ----------------
-function updateChart() {
-  const dataSets = players.map((name, i) => {
-    let cum = 0;
-    const data = [{ x: 0, y: 0 }].concat(
-      rounds.map((sc, r) => {
-        cum += sc[i] !== undefined ? sc[i] : 0;
-        return { x: r + 1, y: cum };
-      })
-    );
-    return { label: name, data, fill: false };
-  });
-  const config = {
-    type: 'line',
-    data: { datasets: dataSets },
-    options: {
-      scales: {
-        x: { type: 'linear', min: 0, title: { display: true, text: 'Rounds' }, ticks: { stepSize: 1 } },
-        y: { title: { display: true, text: 'Cumulative Points' } }
-      }
-    }
-  };
-  if (chart) chart.destroy();
-  chart = new Chart(ctx, config);
-}
-
-// ---------------- FIRESTORE TRANSFORMS ----------------
-function roundsToFirestore() {
-  return rounds.map(scores => {
-    const map = {};
-    players.forEach((player, i) => { map[player] = scores[i] !== undefined ? scores[i] : 0; });
-    return map;
-  });
-}
-function roundsFromFirestore(fsRounds) {
-  return fsRounds.map(map => players.map(p => Number(map[p] !== undefined ? map[p] : 0)));
-}
-function historyToFirestore() {
-  return historyLog.map(scores => {
-    const map = {};
-    players.forEach((player, i) => { map[player] = scores[i] !== undefined ? scores[i] : 0; });
-    return map;
-  });
-}
-function historyFromFirestore(fsHist) {
-  return fsHist.map(map => players.map(p => Number(map[p] !== undefined ? map[p] : 0)));
-}
-
-// ---------------- SYNC ----------------
-function syncToFirestore() {
-  gameDoc.set({ players, rounds: roundsToFirestore(), history: historyToFirestore() }).catch(console.error);
-}
-
-// ---------------- HANDLERS ----------------
-if (addPlayerBtn) addPlayerBtn.onclick = () => {
-  const name = newPlayerInput.value.trim();
-  if (!name) return;
-  players.push(name);
-  newPlayerInput.value = '';
-  renderScoreInputs();
-  roundNumSpan.textContent = String(rounds.length + 1);
-  updateHistory();
-  updateMasterHistory();
-  updateChart();
-  syncToFirestore();
-};
-
-if (submitBtn) submitBtn.onclick = () => {
-  const total = currentScores.reduce((a, b) => a + b, 0);
-  if (total !== 0) {
-    alert(`Error: scores must sum to zero! Currently ${total}`);
-    return;
-  }
-  rounds.push([...currentScores]);
-  renderScoreInputs();
-  roundNumSpan.textContent = String(rounds.length + 1);
-  updateHistory();
-  updateMasterHistory();
-  updateChart();
-  syncToFirestore();
-};
-
-// Reset ONLY the current game (keep players + big history)
-if (resetBtn) resetBtn.onclick = () => {
-  // Reset ONLY the current game (rounds + inputs). Do NOT touch big History.
-  rounds.length = 0;
-  currentScores = players.map(() => 0);
-  renderScoreInputs();
-  roundNumSpan.textContent = '1';
-  historyEditing = false;
-  updateHistory();
-  updateChart();
-  // Persist only rounds (and keep players). Leave history as-is in Firestore.
-  gameDoc.set({ players, rounds: roundsToFirestore() }, { merge: true }).catch(console.error);
-};
-
-if (editHistoryBtn) editHistoryBtn.onclick = () => { historyEditing = true; updateHistory(); };
-if (saveHistoryBtn) saveHistoryBtn.onclick = () => { historyEditing = false; syncToFirestore(); updateHistory(); };
-
-if (appendHistoryBtn) appendHistoryBtn.onclick = () => {
-  if (rounds.length === 0) { alert('No rounds to add.'); return; }
-  rounds.forEach(row => {
-    const copy = players.map((_, i) => (row[i] !== undefined ? row[i] : 0));
-    historyLog.push(copy);
-  });
-  rounds.length = 0; // optional: clear after append
-  renderScoreInputs();
-  roundNumSpan.textContent = '1';
-  updateHistory();
-  updateMasterHistory();
-  updateChart();
-  syncToFirestore();
-};
-
-function showGame() {
-  if (!gameTabSection || !historyTabSection) return;
-  gameTabSection.style.display = 'block';
-  historyTabSection.style.display = 'none';
-}
-function showHistory() {
-  if (!gameTabSection || !historyTabSection) return;
-  gameTabSection.style.display = 'none';
-  historyTabSection.style.display = 'block';
-}
-if (tabGameBtn) tabGameBtn.onclick = showGame;
-if (tabHistoryBtn) tabHistoryBtn.onclick = showHistory;
-
-// ---------------- SEED DATA (requested) ----------------
-const SEED_PLAYERS = ["Jeech","Bex","Antoine","Scrooge"];
-const SEED_HISTORY = [
-[-6,-5,-5,16],[0,-5,5,0],[0,7,0,-7],[-9,0,0,9],[-10,33,-10,-13],[-9,27,-9,-9],[0,0,-4,4],[21,-7,-7,-7],[8,0,-8,0],[42,-14,-14,-14],[15,0,0,-15],[0,0,-6,6],[0,0,7,-7],[-7,24,-10,-7],[0,0,5,-5],[0,0,35,-35],[-10,-9,28,-9],[5,-5,0,0],[16,-5,-5,-6],[0,0,0,0],[-4,0,4,0],[7,0,-7,0],[0,0,-5,5],[0,0,-6,6],[-5,5,0,0],[0,-6,0,6],[-5,-6,16,-5],[0,-5,0,5],[6,0,0,-6],[11,0,0,-11],[-13,-10,33,-10],[-6,19,-7,-6],[22,-8,-7,-7],[-7,0,7,0],[6,0,-6,0],[0,0,0,0],[8,-8,0,0],[0,0,5,-5],[5,-5,0,0],[-12,-13,37,-12],[-4,0,4,0],[0,7,0,-7],[-4,0,0,4],[-5,5,0,0],[0,0,-7,7],[0,-9,0,9],[7,-7,0,0],[-18,0,18,0],[0,0,7,-7],[0,-7,7,0],[-14,0,14,0],[-12,0,12,0],[-12,-12,36,-12],[5,7,0,-12],[-5,5,0,0],[0,-9,9,0],[0,-5,0,5],[0,0,-15,15],[0,-8,0,8],[0,4,-4,0],[-6,6,0,0],[9,0,-9,0]
-];
-
-// ---------------- SNAPSHOT ----------------
-gameDoc.onSnapshot(async doc => {
-  const data = doc.data() || { players: [], rounds: [], history: [] };
-
-  // If database empty, seed with provided players + history once
-  const needSeed = (!Array.isArray(data.players) || data.players.length === 0) && (!Array.isArray(data.history) || data.history.length === 0);
-  if (needSeed) {
-    players.splice(0, players.length, ...SEED_PLAYERS);
-    historyLog.splice(0, historyLog.length, ...SEED_HISTORY);
-    rounds.length = 0;
-    syncToFirestore(); // writes players + history; rounds empty
-    // Show History tab by default after seed
-    showHistory();
-    updateMasterHistory();
-    updateHistory();
-    updateChart();
-    return; // wait for next snapshot with saved data
-  }
-
-  // Normal flow: load from Firestore
-  players.splice(0, players.length, ...data.players);
-  const fsRounds = Array.isArray(data.rounds) ? data.rounds : [];
-  const fsHist = Array.isArray(data.history) ? data.history : [];
-  const newRounds = roundsFromFirestore(fsRounds);
-  const newHist = historyFromFirestore(fsHist);
-  rounds.splice(0, rounds.length, ...newRounds);
-  historyLog.splice(0, historyLog.length, ...newHist);
-
-  renderScoreInputs();
-  roundNumSpan.textContent = String(rounds.length + 1);
-  historyEditing = false;
-  updateHistory();
-  updateMasterHistory();
-  updateChart();
-}, console.error);
+  <script src="script.js"></script>
+</body>
+</html>
