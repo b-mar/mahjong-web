@@ -17,14 +17,13 @@ let historyEditing = false;
 
 let historyPlayers = [];     // ALL-TIME columns (stable order for History tab)
 let historyLog = [];         // ALL-TIME rows (array of arrays aligned to `historyPlayers`)
-let masterEditing = false;   // <— NEW: edit mode for History tab
+let masterEditing = false;   // edit mode for History tab
 
 // DOM elements
 const newPlayerInput = document.getElementById('newPlayer');
 const addPlayerBtn   = document.getElementById('addPlayerBtn');
 const scoreInputs    = document.getElementById('scoreInputs');
 const submitBtn      = document.getElementById('submitBtn');
-// ⬇️ removed resetBtn
 const roundNumSpan   = document.getElementById('roundNum');
 const historyTable   = document.getElementById('historyTable');
 const editHistoryBtn = document.getElementById('editHistoryBtn');
@@ -36,14 +35,19 @@ const tabGameBtn = document.getElementById('tabGame');
 const tabHistoryBtn = document.getElementById('tabHistory');
 const gameTabSection = document.getElementById('gameTab');
 const historyTabSection = document.getElementById('historyTab');
-// NEW: New Game button
+// New Game button
 const newGameBtn = document.getElementById('newGameBtn');
-// NEW: History tab edit/save buttons
+// History tab edit/save buttons
 const editMasterBtn = document.getElementById('editMasterBtn');
 const saveMasterBtn = document.getElementById('saveMasterBtn');
 
+// Charts
 const ctx = document.getElementById('chartCanvas').getContext('2d');
 let chart;
+
+const masterCanvasEl = document.getElementById('masterChartCanvas');
+const masterCtx = masterCanvasEl ? masterCanvasEl.getContext('2d') : null;
+let masterChart;
 
 // ---------------- RENDERING ----------------
 function renderScoreInputs() {
@@ -112,6 +116,7 @@ function updateHistory() {
   }
 }
 
+// Game chart
 function updateChart() {
   const dataSets = players.map((name, i) => {
     let cum = 0;
@@ -137,7 +142,7 @@ function updateChart() {
   chart = new Chart(ctx, config);
 }
 
-// (Editable) BIG HISTORY TABLE
+// History (All-time) editable table
 function updateMasterHistory() {
   if (!masterHistoryTable) return;
   masterHistoryTable.innerHTML = '';
@@ -180,6 +185,36 @@ function updateMasterHistory() {
     editMasterBtn.style.display = masterEditing ? 'none' : 'inline-block';
     saveMasterBtn.style.display = masterEditing ? 'inline-block' : 'none';
   }
+}
+
+// NEW: History chart (all-time cumulative)
+function updateMasterChart() {
+  if (!masterCtx) return;
+
+  const datasets = historyPlayers.map((name, colIdx) => {
+    let cum = 0;
+    const points = [{ x: 0, y: 0 }].concat(
+      historyLog.map((row, r) => {
+        cum += row[colIdx] !== undefined ? row[colIdx] : 0;
+        return { x: r + 1, y: cum };
+      })
+    );
+    return { label: name, data: points, fill: false };
+  });
+
+  const config = {
+    type: 'line',
+    data: { datasets },
+    options: {
+      scales: {
+        x: { type: 'linear', min: 0, title: { display: true, text: 'Rounds' }, ticks: { stepSize: 1 } },
+        y: { title: { display: true, text: 'Cumulative Points' } }
+      }
+    }
+  };
+
+  if (masterChart) masterChart.destroy();
+  masterChart = new Chart(masterCtx, config);
 }
 
 // ---------------- HELPERS (HISTORY) ----------------
@@ -292,12 +327,13 @@ if (newGameBtn) newGameBtn.onclick = () => {
   updateHistory();
   updateMasterHistory();     // re-render to be safe
   updateChart();
+  updateMasterChart();       // history unchanged, but re-render is fine
 
   // Persist only players + rounds; do NOT touch history/historyPlayers
   gameDoc.set({ players: [], rounds: [] }, { merge: true }).catch(console.error);
 };
 
-// Per-game history edit/save (unchanged)
+// Per-game history edit/save
 if (editHistoryBtn) editHistoryBtn.onclick = () => { historyEditing = true; updateHistory(); };
 if (saveHistoryBtn) saveHistoryBtn.onclick = () => { historyEditing = false; syncToFirestore(); updateHistory(); };
 
@@ -312,6 +348,7 @@ if (appendHistoryBtn) appendHistoryBtn.onclick = () => {
   updateHistory();
   updateMasterHistory();
   updateChart();
+  updateMasterChart();   // <— reflect the newly appended rows
   syncToFirestore();
 };
 
@@ -324,6 +361,7 @@ if (saveMasterBtn) saveMasterBtn.onclick = () => {
   masterEditing = false;
   syncToFirestore();   // persist edited historyLog/historyPlayers
   updateMasterHistory();
+  updateMasterChart(); // <— reflect edited values in the chart
 };
 
 // Tabs (optional)
@@ -336,6 +374,7 @@ function showHistory() {
   if (!gameTabSection || !historyTabSection) return;
   gameTabSection.style.display = 'none';
   historyTabSection.style.display = 'block';
+  updateMasterChart(); // ensure chart renders when switching to History tab
 }
 if (tabGameBtn) tabGameBtn.onclick = showGame;
 if (tabHistoryBtn) tabHistoryBtn.onclick = showHistory;
@@ -368,4 +407,5 @@ gameDoc.onSnapshot(doc => {
   updateHistory();
   updateMasterHistory();
   updateChart();
+  updateMasterChart();  // <— keep in sync with DB
 }, console.error);
