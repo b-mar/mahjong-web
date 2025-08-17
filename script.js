@@ -152,7 +152,7 @@ function updateMasterHistory() {
   header.insertCell().textContent = 'Row';
   historyPlayers.forEach(p => header.insertCell().textContent = p);
 
-  // Rows
+  // Body rows
   historyLog.forEach((rowVals, idx) => {
     const row = masterHistoryTable.insertRow();
     row.insertCell().textContent = String(idx + 1);
@@ -172,12 +172,24 @@ function updateMasterHistory() {
           const r = Number(e.target.dataset.row);
           const c = Number(e.target.dataset.col);
           historyLog[r][c] = Number(e.target.value);
+          // (Optional) live totals update:
+          // we keep totals static during edit to avoid re-rendering inputs.
+          // Totals will refresh on Save.
         });
         cell.appendChild(inp);
       } else {
         cell.textContent = String(val);
       }
     });
+  });
+
+  // Totals row (always read-only)
+  const totalRow = masterHistoryTable.insertRow();
+  const labelCell = totalRow.insertCell();
+  labelCell.textContent = 'Total';
+  historyPlayers.forEach((_, i) => {
+    const sum = historyLog.reduce((acc, r) => acc + (r[i] !== undefined ? r[i] : 0), 0);
+    totalRow.insertCell().textContent = String(sum);
   });
 
   // Toggle History-tab edit/save buttons
@@ -187,35 +199,6 @@ function updateMasterHistory() {
   }
 }
 
-// NEW: History chart (all-time cumulative)
-function updateMasterChart() {
-  if (!masterCtx) return;
-
-  const datasets = historyPlayers.map((name, colIdx) => {
-    let cum = 0;
-    const points = [{ x: 0, y: 0 }].concat(
-      historyLog.map((row, r) => {
-        cum += row[colIdx] !== undefined ? row[colIdx] : 0;
-        return { x: r + 1, y: cum };
-      })
-    );
-    return { label: name, data: points, fill: false };
-  });
-
-  const config = {
-    type: 'line',
-    data: { datasets },
-    options: {
-      scales: {
-        x: { type: 'linear', min: 0, title: { display: true, text: 'Rounds' }, ticks: { stepSize: 1 } },
-        y: { title: { display: true, text: 'Cumulative Points' } }
-      }
-    }
-  };
-
-  if (masterChart) masterChart.destroy();
-  masterChart = new Chart(masterCtx, config);
-}
 
 // ---------------- HELPERS (HISTORY) ----------------
 function ensureHistoryColumns(currPlayers) {
