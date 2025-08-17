@@ -73,10 +73,20 @@
     </section>
 
     <!-- BIG RUNNING HISTORY TAB -->
-    <section id="historyTab" style="display:none;">
-      <h2>All-time History</h2>
-      <table id="masterHistoryTable" border="1" cellpadding="4"></table>
-    </section>
+<section id="historyTab" style="display:none;">
+  <h2>All History</h2>
+
+  <!-- New: edit/save controls for the all-time history table -->
+  <div id="masterHistoryControls" style="margin-bottom:.5rem;">
+    <button id="editMasterBtn">Edit</button>
+    <button id="saveMasterBtn" style="display:none;">Save</button>
+  </div>
+
+  <table id="masterHistoryTable" border="1" cellpadding="4"></table>
+</section>
+
+
+  
   </main>
 
   <script src="script.js"></script>
