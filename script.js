@@ -172,9 +172,7 @@ function updateMasterHistory() {
           const r = Number(e.target.dataset.row);
           const c = Number(e.target.dataset.col);
           historyLog[r][c] = Number(e.target.value);
-          // (Optional) live totals update:
-          // we keep totals static during edit to avoid re-rendering inputs.
-          // Totals will refresh on Save.
+          // (Optional) live totals/chart: call updateMasterChart() here if desired.
         });
         cell.appendChild(inp);
       } else {
@@ -197,8 +195,40 @@ function updateMasterHistory() {
     editMasterBtn.style.display = masterEditing ? 'none' : 'inline-block';
     saveMasterBtn.style.display = masterEditing ? 'inline-block' : 'none';
   }
+
+  // Keep the History chart in sync with the table
+  updateMasterChart();
 }
 
+// NEW: History chart (all-time cumulative)
+function updateMasterChart() {
+  if (!masterCtx) return;
+
+  const datasets = historyPlayers.map((name, colIdx) => {
+    let cum = 0;
+    const points = [{ x: 0, y: 0 }].concat(
+      historyLog.map((row, r) => {
+        cum += row[colIdx] !== undefined ? row[colIdx] : 0;
+        return { x: r + 1, y: cum };
+      })
+    );
+    return { label: name, data: points, fill: false };
+  });
+
+  const config = {
+    type: 'line',
+    data: { datasets },
+    options: {
+      scales: {
+        x: { type: 'linear', min: 0, title: { display: true, text: 'Rounds' }, ticks: { stepSize: 1 } },
+        y: { title: { display: true, text: 'Cumulative Points' } }
+      }
+    }
+  };
+
+  if (masterChart) masterChart.destroy();
+  masterChart = new Chart(masterCtx, config);
+}
 
 // ---------------- HELPERS (HISTORY) ----------------
 function ensureHistoryColumns(currPlayers) {
@@ -331,7 +361,7 @@ if (appendHistoryBtn) appendHistoryBtn.onclick = () => {
   updateHistory();
   updateMasterHistory();
   updateChart();
-  updateMasterChart();   // <— reflect the newly appended rows
+  updateMasterChart();   // reflect the newly appended rows
   syncToFirestore();
 };
 
@@ -344,7 +374,7 @@ if (saveMasterBtn) saveMasterBtn.onclick = () => {
   masterEditing = false;
   syncToFirestore();   // persist edited historyLog/historyPlayers
   updateMasterHistory();
-  updateMasterChart(); // <— reflect edited values in the chart
+  updateMasterChart(); // reflect edited values in the chart
 };
 
 // Tabs (optional)
@@ -390,5 +420,5 @@ gameDoc.onSnapshot(doc => {
   updateHistory();
   updateMasterHistory();
   updateChart();
-  updateMasterChart();  // <— keep in sync with DB
+  updateMasterChart();  // keep in sync with DB
 }, console.error);
