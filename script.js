@@ -17,6 +17,7 @@ let historyEditing = false;
 
 let historyPlayers = [];     // ALL-TIME columns (stable order for History tab)
 let historyLog = [];         // ALL-TIME rows (array of arrays aligned to `historyPlayers`)
+let masterEditing = false;   // <— NEW: edit mode for History tab
 
 // DOM elements
 const newPlayerInput = document.getElementById('newPlayer');
@@ -37,6 +38,9 @@ const gameTabSection = document.getElementById('gameTab');
 const historyTabSection = document.getElementById('historyTab');
 // NEW: New Game button
 const newGameBtn = document.getElementById('newGameBtn');
+// NEW: History tab edit/save buttons
+const editMasterBtn = document.getElementById('editMasterBtn');
+const saveMasterBtn = document.getElementById('saveMasterBtn');
 
 const ctx = document.getElementById('chartCanvas').getContext('2d');
 let chart;
@@ -133,20 +137,49 @@ function updateChart() {
   chart = new Chart(ctx, config);
 }
 
+// (Editable) BIG HISTORY TABLE
 function updateMasterHistory() {
   if (!masterHistoryTable) return;
   masterHistoryTable.innerHTML = '';
+
+  // Header
   const header = masterHistoryTable.insertRow();
   header.insertCell().textContent = 'Row';
   historyPlayers.forEach(p => header.insertCell().textContent = p);
+
+  // Rows
   historyLog.forEach((rowVals, idx) => {
     const row = masterHistoryTable.insertRow();
     row.insertCell().textContent = String(idx + 1);
+
     historyPlayers.forEach((_, i) => {
+      const cell = row.insertCell();
       const val = rowVals[i] !== undefined ? rowVals[i] : 0;
-      row.insertCell().textContent = String(val);
+
+      if (masterEditing) {
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        inp.value = val;
+        inp.style.width = '4rem';
+        inp.dataset.row = idx;
+        inp.dataset.col = i;
+        inp.addEventListener('input', e => {
+          const r = Number(e.target.dataset.row);
+          const c = Number(e.target.dataset.col);
+          historyLog[r][c] = Number(e.target.value);
+        });
+        cell.appendChild(inp);
+      } else {
+        cell.textContent = String(val);
+      }
     });
   });
+
+  // Toggle History-tab edit/save buttons
+  if (editMasterBtn && saveMasterBtn) {
+    editMasterBtn.style.display = masterEditing ? 'none' : 'inline-block';
+    saveMasterBtn.style.display = masterEditing ? 'inline-block' : 'none';
+  }
 }
 
 // ---------------- HELPERS (HISTORY) ----------------
@@ -257,16 +290,18 @@ if (newGameBtn) newGameBtn.onclick = () => {
   roundNumSpan.textContent = '1';
   historyEditing = false;
   updateHistory();
-  updateMasterHistory();     // unchanged, but re-render to be safe
+  updateMasterHistory();     // re-render to be safe
   updateChart();
 
   // Persist only players + rounds; do NOT touch history/historyPlayers
   gameDoc.set({ players: [], rounds: [] }, { merge: true }).catch(console.error);
 };
 
+// Per-game history edit/save (unchanged)
 if (editHistoryBtn) editHistoryBtn.onclick = () => { historyEditing = true; updateHistory(); };
 if (saveHistoryBtn) saveHistoryBtn.onclick = () => { historyEditing = false; syncToFirestore(); updateHistory(); };
 
+// History tab: Add to History
 if (appendHistoryBtn) appendHistoryBtn.onclick = () => {
   if (rounds.length === 0) { alert('No rounds to add.'); return; }
   appendCurrentRoundsToHistory();
@@ -278,6 +313,17 @@ if (appendHistoryBtn) appendHistoryBtn.onclick = () => {
   updateMasterHistory();
   updateChart();
   syncToFirestore();
+};
+
+// NEW: History tab edit/save handlers
+if (editMasterBtn) editMasterBtn.onclick = () => {
+  masterEditing = true;
+  updateMasterHistory();
+};
+if (saveMasterBtn) saveMasterBtn.onclick = () => {
+  masterEditing = false;
+  syncToFirestore();   // persist edited historyLog/historyPlayers
+  updateMasterHistory();
 };
 
 // Tabs (optional)
