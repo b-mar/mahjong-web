@@ -12,10 +12,12 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
-    body { font-family: -apple-system, sans-serif; margin:0; padding:0; }
+    /* Base layout */
+    body { font-family: -apple-system, sans-serif; margin:0; padding:0; background:#ffffff; color:#111827; }
     header { display:flex; align-items:center; padding:1rem; }
-    header h1 { flex:1; text-align:center; margin:0; }
-    button { padding:0.5rem 1rem; border:1px solid #888; background:transparent; cursor:pointer; }
+    header h1 { flex:1; text-align:center; margin:0; color:#111827; }
+    button { padding:0.5rem 1rem; border:1px solid #c7c9cf; background:#ffffff; color:#111827; cursor:pointer; border-radius:8px; }
+    button:hover { background:#f5f5f7; }
     main { padding:1rem; overflow-y:auto; height: calc(100vh - 64px); }
     .section { margin-bottom:2rem; }
     canvas { max-width:100%; height:auto; }
@@ -23,16 +25,16 @@
     nav button { margin-right: .5rem; }
     #historyControls { margin-bottom: .5rem; }
 
-    /* Modern tables */
+    /* Modern tables (light mode, grayscale) */
     .table-wrap { overflow-x: auto; }
     .data-table {
       width: 100%;
       border-collapse: separate;
       border-spacing: 0;
-      background: #fff;
-      border: 1px solid #e5e7eb;          /* subtle outer border */
+      background: #ffffff;                 /* white canvas */
+      border: 1px solid #d1d5db;           /* gray-300 border */
       border-radius: 12px;
-      overflow: hidden;                    /* clip rounded corners */
+      overflow: hidden;                     /* clip rounded corners */
       font-size: 14px;
     }
 
@@ -42,8 +44,8 @@
     .data-table tr:first-child td {
       position: sticky;
       top: 0;
-      background: #f9fafb;
-      color: #111827;
+      background: #f3f4f6;                 /* gray-100 */
+      color: #111827;                       /* gray-900 */
       font-weight: 600;
       letter-spacing: .02em;
       z-index: 1;
@@ -53,20 +55,21 @@
     .data-table th,
     .data-table td {
       padding: 10px 12px;
-      border-bottom: 1px solid #f1f5f9;   /* subtle row divider */
+      border-bottom: 1px solid #e5e7eb;    /* gray-200 row divider */
       white-space: nowrap;
+      background: #ffffff;                  /* keep rows white by default */
     }
 
-    /* Zebra striping */
+    /* Zebra (very subtle) */
     .data-table tbody tr:nth-child(even),
     .data-table tr:nth-child(even):not(:first-child) {
-      background: #fcfcfd;
+      background: #fafafa;                  /* near-white gray-50 */
     }
 
     /* Last row (e.g., "Total") */
     .data-table tr:last-child td {
       border-bottom: 0;
-      background: #f9fafb;
+      background: #f5f5f5;                  /* slightly deeper gray for total */
       font-weight: 600;
     }
 
@@ -75,7 +78,8 @@
     .data-table td:first-child {
       width: 64px;
       text-align: center;
-      color: #6b7280;
+      color: #6b7280;                       /* gray-500 */
+      background: #ffffff;
     }
     .data-table th:not(:first-child),
     .data-table td:not(:first-child) {
@@ -86,48 +90,19 @@
     .data-table input[type="number"] {
       width: 4.5rem;
       padding: 6px 8px;
-      border: 1px solid #d0d7de;
+      border: 1px solid #d0d7de;           /* neutral input border */
       border-radius: 8px;
-      background: #fff;
+      background: #ffffff;
+      color: #111827;
       outline: none;
     }
     .data-table input[type="number"]:focus {
-      border-color: #4f46e5;              /* indigo focus */
-      box-shadow: 0 0 0 3px rgba(79,70,229,.15);
+      border-color: #9aa0a6;               /* gray-ish focus */
+      box-shadow: 0 0 0 3px rgba(154,160,166,.2);
     }
 
-    /* Hover for readability */
-    .data-table tbody tr:hover td {
-      background: #f3f4f6;
-    }
-
-    /* Dark mode */
-    @media (prefers-color-scheme: dark) {
-      .data-table {
-        background: #0b0f14;
-        border-color: #1f2937;
-      }
-      .data-table thead th,
-      .data-table tr:first-child td {
-        background: #111827;
-        color: #e5e7eb;
-      }
-      .data-table th, .data-table td {
-        border-bottom-color: #1f2937;
-        color: #e5e7eb;
-      }
-      .data-table tbody tr:nth-child(even) { background: #0e1319; }
-      .data-table tr:last-child td { background: #111827; }
-      .data-table input[type="number"] {
-        background: #0b0f14;
-        border-color: #374151;
-        color: #e5e7eb;
-      }
-      .data-table input[type="number"]:focus {
-        border-color: #6366f1;
-        box-shadow: 0 0 0 3px rgba(99,102,241,.2);
-      }
-    }
+    /* Removed: row hover effect for cleaner look */
+    /* .data-table tbody tr:hover td { ... } */
   </style>
 </head>
 <body>
