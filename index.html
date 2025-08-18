@@ -4,11 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>🀄💥💸</title>
+
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
     body { font-family: -apple-system, sans-serif; margin:0; padding:0; }
     header { display:flex; align-items:center; padding:1rem; }
@@ -20,7 +22,112 @@
     nav { margin-bottom: 1rem; }
     nav button { margin-right: .5rem; }
     #historyControls { margin-bottom: .5rem; }
-    #historyTable input { width: 4rem; }
+
+    /* Modern tables */
+    .table-wrap { overflow-x: auto; }
+    .data-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: #fff;
+      border: 1px solid #e5e7eb;          /* subtle outer border */
+      border-radius: 12px;
+      overflow: hidden;                    /* clip rounded corners */
+      font-size: 14px;
+    }
+
+    /* Sticky header (works with JS-first-row header) */
+    .data-table thead th,
+    .data-table tr:first-child th,
+    .data-table tr:first-child td {
+      position: sticky;
+      top: 0;
+      background: #f9fafb;
+      color: #111827;
+      font-weight: 600;
+      letter-spacing: .02em;
+      z-index: 1;
+    }
+
+    /* Cells */
+    .data-table th,
+    .data-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #f1f5f9;   /* subtle row divider */
+      white-space: nowrap;
+    }
+
+    /* Zebra striping */
+    .data-table tbody tr:nth-child(even),
+    .data-table tr:nth-child(even):not(:first-child) {
+      background: #fcfcfd;
+    }
+
+    /* Last row (e.g., "Total") */
+    .data-table tr:last-child td {
+      border-bottom: 0;
+      background: #f9fafb;
+      font-weight: 600;
+    }
+
+    /* Align numbers right, keep first column compact */
+    .data-table th:first-child,
+    .data-table td:first-child {
+      width: 64px;
+      text-align: center;
+      color: #6b7280;
+    }
+    .data-table th:not(:first-child),
+    .data-table td:not(:first-child) {
+      text-align: right;
+    }
+
+    /* Inputs inside editable cells */
+    .data-table input[type="number"] {
+      width: 4.5rem;
+      padding: 6px 8px;
+      border: 1px solid #d0d7de;
+      border-radius: 8px;
+      background: #fff;
+      outline: none;
+    }
+    .data-table input[type="number"]:focus {
+      border-color: #4f46e5;              /* indigo focus */
+      box-shadow: 0 0 0 3px rgba(79,70,229,.15);
+    }
+
+    /* Hover for readability */
+    .data-table tbody tr:hover td {
+      background: #f3f4f6;
+    }
+
+    /* Dark mode */
+    @media (prefers-color-scheme: dark) {
+      .data-table {
+        background: #0b0f14;
+        border-color: #1f2937;
+      }
+      .data-table thead th,
+      .data-table tr:first-child td {
+        background: #111827;
+        color: #e5e7eb;
+      }
+      .data-table th, .data-table td {
+        border-bottom-color: #1f2937;
+        color: #e5e7eb;
+      }
+      .data-table tbody tr:nth-child(even) { background: #0e1319; }
+      .data-table tr:last-child td { background: #111827; }
+      .data-table input[type="number"] {
+        background: #0b0f14;
+        border-color: #374151;
+        color: #e5e7eb;
+      }
+      .data-table input[type="number"]:focus {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99,102,241,.2);
+      }
+    }
   </style>
 </head>
 <body>
@@ -33,15 +140,14 @@
     </div>
   </header>
 
+  <main>
     <!-- GAME TAB -->
-
     <section id="gameTab">
-      <!-- Inside <section id="gameTab"> … just above or below Add to History -->
       <div class="section" style="margin:1rem 0;">
         <button id="newGameBtn">New Game</button>
         <button id="appendHistoryBtn">Add to History</button>
       </div>
-      
+
       <div class="section" id="addPlayerSection">
         <h2>Add Player</h2>
         <input type="text" id="newPlayer" placeholder="Name" />
@@ -61,32 +167,33 @@
 
       <div class="section" id="historySection">
         <h2>Rounds</h2>
-         <div id="historyControls">
+        <div id="historyControls">
           <button id="editHistoryBtn">Edit</button>
           <button id="saveHistoryBtn" style="display:none;">Save</button>
         </div>
-        <table id="historyTable" border="1" cellpadding="4"></table>
+        <div class="table-wrap">
+          <table id="historyTable" class="data-table"></table>
+        </div>
       </div>
-
     </section>
 
     <!-- BIG RUNNING HISTORY TAB -->
-<section id="historyTab" style="display:none;">
-  <h2>All Time History</h2>
+    <section id="historyTab" style="display:none;">
+      <h2>All Time History</h2>
 
-<canvas id="masterChartCanvas"></canvas>
+      <h3>History Chart</h3>
+      <canvas id="masterChartCanvas"></canvas>
 
-  <!-- New: edit/save controls for the all-time history table -->
-  <div id="masterHistoryControls" style="margin-bottom:.5rem;">
-    <button id="editMasterBtn">Edit</button>
-    <button id="saveMasterBtn" style="display:none;">Save</button>
-  </div>
+      <!-- Edit/save controls for the all-time history table -->
+      <div id="masterHistoryControls" style="margin: .75rem 0;">
+        <button id="editMasterBtn">Edit</button>
+        <button id="saveMasterBtn" style="display:none;">Save</button>
+      </div>
 
-  <table id="masterHistoryTable" border="1" cellpadding="4"></table>
-</section>
-
-
-  
+      <div class="table-wrap">
+        <table id="masterHistoryTable" class="data-table"></table>
+      </div>
+    </section>
   </main>
 
   <script src="script.js"></script>
