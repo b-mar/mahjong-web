@@ -53,6 +53,24 @@ const masterCanvasEl = document.getElementById('masterChartCanvas');
 const masterCtx = masterCanvasEl ? masterCanvasEl.getContext('2d') : null;
 let masterChart;
 
+// ---------------- COLORS ----------------
+const PLAYER_COLORS = [
+  '#1f77b4', // blue
+  '#ff7f0e', // orange
+  '#2ca02c', // green
+  '#d62728', // red
+  '#9467bd', // purple
+  '#8c564b', // brown
+  '#e377c2', // pink
+  '#7f7f7f', // gray
+  '#bcbd22', // olive
+  '#17becf', // teal
+  '#aec7e8', // light blue
+  '#ffbb78', // light orange
+  '#98df8a', // light green
+  '#ff9896', // light red
+  '#c5b0d5', // lavender
+];
 // ---------------- UNDO ----------------
 function takeUndoSnapshot() {
   undoSnapshot = {
@@ -141,7 +159,15 @@ function updateChart() {
         return { x: idx + 1, y: cum };
       })
     );
-    return { label: name, data };
+    return {
+  label: name,
+  data,
+  borderColor: getPlayerColor(i),
+  backgroundColor: getPlayerColor(i),
+  tension: 0.25,
+  pointRadius: 3,
+};
+
   });
 
   if (chart) chart.destroy();
@@ -180,7 +206,15 @@ function updateMasterChart() {
         return { x: i + 1, y: cum };
       })
     );
-    return { label: name, data };
+    return {
+  label: name,
+  data,
+  borderColor: getPlayerColor(c),
+  backgroundColor: getPlayerColor(c),
+  tension: 0.25,
+  pointRadius: 2,
+};
+
   });
 
   if (masterChart) masterChart.destroy();
@@ -201,6 +235,10 @@ function renderAll() {
 }
 
 // ---------------- HELPERS ----------------
+function getPlayerColor(index) {
+  return PLAYER_COLORS[index % PLAYER_COLORS.length];
+}
+
 function appendCurrentRoundsToHistory() {
   players.forEach(p => {
     if (!historyPlayers.includes(p)) {
