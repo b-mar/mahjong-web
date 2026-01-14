@@ -46,6 +46,10 @@ const resetZoomBtn = document.getElementById('resetZoomBtn');
 const editMasterBtn = document.getElementById('editMasterBtn');
 const saveMasterBtn = document.getElementById('saveMasterBtn');
 
+// Game tab edit/save buttons
+const editHistoryBtn = document.getElementById('editHistoryBtn');
+const saveHistoryBtn = document.getElementById('saveHistoryBtn');
+
 // ---------------- CHARTS ----------------
 const ctx = document.getElementById('chartCanvas')?.getContext('2d');
 let chart;
@@ -270,6 +274,35 @@ if (tabGameBtn && tabHistoryBtn && gameTabSection && historyTabSection) { tabGam
 // ---------------- HISTORY TAB BUTTONS ----------------
 if(resetZoomBtn) resetZoomBtn.onclick=()=>masterChart?.resetZoom?.();
 if(editMasterBtn && saveMasterBtn && masterHistoryTable){ editMasterBtn.onclick=()=>{ Array.from(masterHistoryTable.querySelectorAll('td')).forEach(td=>{ const val=td.textContent; td.innerHTML=`<input type='number' value='${val}' />`; }); editMasterBtn.style.display='none'; saveMasterBtn.style.display='inline-block'; }; saveMasterBtn.onclick=()=>{ const rows=masterHistoryTable.querySelectorAll('tr'); historyLog=Array.from(rows).slice(1).map(row=>Array.from(row.querySelectorAll('td')).slice(1).map(td=>Number(td.querySelector('input')?.value??0))); renderAll(); syncToFirestore(); saveMasterBtn.style.display='none'; editMasterBtn.style.display='inline-block'; };}
+
+// ---------------- GAME TAB EDIT/SAVE ----------------
+if(editHistoryBtn && saveHistoryBtn && historyTable){
+  editHistoryBtn.onclick=()=>{
+    Array.from(historyTable.querySelectorAll('tr')).forEach((row,rowIndex)=>{
+      if(rowIndex===0) return;
+      Array.from(row.querySelectorAll('td')).forEach((td,colIndex)=>{
+        if(colIndex===0) return;
+        const val=td.textContent;
+        td.innerHTML=`<input type='number' value='${val}' />`;
+      });
+    });
+    editHistoryBtn.style.display='none';
+    saveHistoryBtn.style.display='inline-block';
+  };
+  saveHistoryBtn.onclick=()=>{
+    const rows=historyTable.querySelectorAll('tr');
+    rounds.length=0;
+    Array.from(rows).forEach((row,rowIndex)=>{
+      if(rowIndex===0) return;
+      const scores=Array.from(row.querySelectorAll('td')).slice(1).map(td=>Number(td.querySelector('input')?.value??0));
+      rounds.push(scores);
+    });
+    renderAll();
+    syncToFirestore();
+    saveHistoryBtn.style.display='none';
+    editHistoryBtn.style.display='inline-block';
+  };
+}
 
 // ---------------- SNAPSHOT LISTENER ----------------
 gameDoc.onSnapshot(doc=>{ if(isRestoringUndo) return; const d=doc.data(); if(!d) return; players.splice(0,players.length,...(d.players??[])); rounds.splice(0,rounds.length,...(d.rounds??[]).map(r=>players.map(p=>r[p]??0))); historyPlayers.splice(0,historyPlayers.length,...(d.historyPlayers??[])); historyLog.splice(0,historyLog.length,...(d.history??[]).map(r=>historyPlayers.map(p=>r[p]??0))); renderAll(); });
