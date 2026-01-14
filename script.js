@@ -122,4 +122,222 @@ function renderScoreInputs() {
 
 function updateHistory() {
   historyTable.innerHTML = '';
-  const head
+  const header = historyTable.insertRow();
+  header.insertCell().textContent = 'Round';
+  players.forEach(p => header.insertCell().textContent = p);
+
+  rounds.forEach((scores, r) => {
+    const row = historyTable.insertRow();
+    row.insertCell().textContent = r + 1;
+    players.forEach((_, i) => row.insertCell().textContent = scores[i] ?? 0);
+  });
+}
+
+function updateChart() {
+  const datasets = players.map((name, i) => {
+    let cum = 0;
+    const data = [{ x: 0, y: 0 }].concat(
+      rounds.map((r, idx) => {
+        cum += r[i] ?? 0;
+        return { x: idx + 1, y: cum };
+      })
+    );
+
+    return {
+      label: name,
+      data,
+      borderColor: getPlayerColor(i),
+      backgroundColor: getPlayerColor(i),
+      tension: 0.25,
+      pointRadius: 3,
+    };
+  });
+
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: { scales: { x: { type: 'linear' } } }
+  });
+}
+
+function updateMasterHistory() {
+  if (!masterHistoryTable) return;
+  masterHistoryTable.innerHTML = '';
+
+  const header = masterHistoryTable.insertRow();
+  header.insertCell().textContent = 'Row';
+  historyPlayers.forEach(p => header.insertCell().textContent = p);
+
+  historyLog.forEach((rowVals, i) => {
+    const row = masterHistoryTable.insertRow();
+    row.insertCell().textContent = i + 1;
+    historyPlayers.forEach((_, c) => {
+      row.insertCell().textContent = rowVals[c] ?? 0;
+    });
+  });
+}
+
+function updateMasterChart() {
+  if (!masterCtx) return;
+
+  const datasets = historyPlayers.map((name, c) => {
+    let cum = 0;
+    const data = [{ x: 0, y: 0 }].concat(
+      historyLog.map((r, i) => {
+        cum += r[c] ?? 0;
+        return { x: i + 1, y: cum };
+      })
+    );
+
+    return {
+      label: name,
+      data,
+      borderColor: getPlayerColor(c),
+      backgroundColor: getPlayerColor(c),
+      tension: 0.25,
+      pointRadius: 2,
+    };
+  });
+
+  if (masterChart) masterChart.destroy();
+
+  masterChart = new Chart(masterCtx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      scales: {
+        x: { type: 'linear', title: { display: true, text: 'Rounds' } },
+        y: { title: { display: true, text: 'Cumulative Points' } },
+      },
+      plugins: {
+        zoom: {
+          pan: { enabled: true, mode: 'xy' },
+          zoom: {
+            wheel: { enabled: true },
+            pinch: { enabled: true },
+            mode: 'xy',
+          },
+        },
+      },
+    },
+  });
+}
+
+function renderAll() {
+  renderScoreInputs();
+  roundNumSpan.textContent = rounds.length + 1;
+  updateHistory();
+  updateMasterHistory();
+  updateChart();
+  updateMasterChart();
+}
+
+// ---------------- HELPERS ----------------
+function appendCurrentRoundsToHistory() {
+  players.forEach(p => {
+    if (!historyPlayers.includes(p)) {
+      historyPlayers.push(p);
+      historyLog.forEach(r => r.push(0));
+    }
+  });
+
+  rounds.forEach(r => {
+    const row = historyPlayers.map(() => 0);
+    players.forEach((p, i) => {
+      row[historyPlayers.indexOf(p)] = r[i] ?? 0;
+    });
+    historyLog.push(row);
+  });
+}
+
+// ---------------- FIRESTORE ----------------
+function syncToFirestore() {
+  gameDoc.set({
+    players,
+    rounds: rounds.map(r =>
+      Object.fromEntries(players.map((p, i) => [p, r[i] ?? 0]))
+    ),
+    historyPlayers,
+    history: historyLog.map(r =>
+      Object.fromEntries(historyPlayers.map((p, i) => [p, r[i] ?? 0]))
+    )
+  }, { merge: true }).catch(console.error);
+}
+
+// ---------------- HANDLERS ----------------
+addPlayerBtn.onclick = () => {
+  const name = newPlayerInput.value.trim();
+  if (!name) return;
+  takeUndoSnapshot();
+  players.push(name);
+  newPlayerInput.value = '';
+  renderAll();
+  syncToFirestore();
+};
+
+submitBtn.onclick = () => {
+  const sum = currentScores.reduce((a, b) => a + b, 0);
+  if (sum !== 0) return alert('Scores must sum to zero');
+  takeUndoSnapshot();
+  rounds.push([...currentScores]);
+  renderAll();
+  syncToFirestore();
+};
+
+newGameBtn.onclick = () => {
+  takeUndoSnapshot();
+  players.length = 0;
+  rounds.length = 0;
+  currentScores = [];
+  renderAll();
+  syncToFirestore();
+};
+
+appendHistoryBtn.onclick = () => {
+  if (!rounds.length) return alert('No rounds to add');
+  takeUndoSnapshot();
+  appendCurrentRoundsToHistory();
+  rounds.length = 0;
+  renderAll();
+  syncToFirestore();
+};
+
+undoBtn.onclick = () => {
+  if (!undoSnapshot) return alert('Nothing to undo');
+  restoreUndoSnapshot();
+};
+
+tabGameBtn.onclick = () => {
+  gameTabSection.style.display = 'block';
+  historyTabSection.style.display = 'none';
+};
+
+tabHistoryBtn.onclick = () => {
+  gameTabSection.style.display = 'none';
+  historyTabSection.style.display = 'block';
+
+  requestAnimationFrame(() => {
+    updateMasterChart();
+    masterChart?.resetZoom?.();
+  });
+};
+
+// ---------------- SNAPSHOT LISTENER ----------------
+gameDoc.onSnapshot(doc => {
+  if (isRestoringUndo) return;
+  const d = doc.data();
+  if (!d) return;
+
+  players.splice(0, players.length, ...(d.players ?? []));
+  rounds.splice(0, rounds.length,
+    ...(d.rounds ?? []).map(r => players.map(p => r[p] ?? 0))
+  );
+
+  historyPlayers.splice(0, historyPlayers.length, ...(d.historyPlayers ?? []));
+  historyLog.splice(0, historyLog.length,
+    ...(d.history ?? []).map(r => historyPlayers.map(p => r[p] ?? 0))
+  );
+
+  renderAll();
+});
