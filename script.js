@@ -140,6 +140,7 @@ function updateHistory() {
   });
 }
 
+// ---------------- MAIN GAME CHART ----------------
 function updateChart() {
   if (!ctx) return;
   const datasets = players.map((name, i) => {
@@ -165,18 +166,20 @@ function updateChart() {
   chart = new Chart(ctx, {
     type: 'line',
     data: { datasets },
-    options: { 
-      scales: { 
+    options: {
+      scales: {
         x: {
           type: 'linear',
           min: 0,
-          max: rounds.length > 0 ? rounds.length : 1
-        } 
-      } 
+          suggestedMax: rounds.length > 0 ? rounds.length + 1 : 1,
+          title: { display: true, text: 'Rounds' },
+        }
+      }
     }
   });
 }
 
+// ---------------- MASTER HISTORY ----------------
 function updateMasterHistory() {
   if (!masterHistoryTable) return;
   masterHistoryTable.innerHTML = '';
@@ -226,12 +229,10 @@ function updateMasterChart() {
         x: {
           type: 'linear',
           min: 0,
-          max: historyLog.length > 0 ? historyLog.length : 1,
+          suggestedMax: historyLog.length > 0 ? historyLog.length + 1 : 1,
           title: { display: true, text: 'Rounds' },
         },
-        y: {
-          title: { display: true, text: 'Cumulative Points' },
-        },
+        y: { title: { display: true, text: 'Cumulative Points' } },
       },
       plugins: {
         zoom: {
@@ -243,6 +244,7 @@ function updateMasterChart() {
   });
 }
 
+// ---------------- RENDER ALL ----------------
 function renderAll() {
   renderScoreInputs();
   if (roundNumSpan) roundNumSpan.textContent = rounds.length + 1;
@@ -285,7 +287,5 @@ function syncToFirestore() {
 }
 
 // ---------------- HANDLERS ----------------
-// ... (all previous handlers remain the same)
-
-// Example: Reset Zoom button
+// All previous handlers remain intact, including reset zoom button
 if (resetZoomBtn) resetZoomBtn.onclick = () => masterChart?.resetZoom?.();
