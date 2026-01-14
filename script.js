@@ -30,6 +30,7 @@ const editHistoryBtn = document.getElementById('editHistoryBtn');
 const saveHistoryBtn = document.getElementById('saveHistoryBtn');
 const appendHistoryBtn = document.getElementById('appendHistoryBtn');
 const masterHistoryTable = document.getElementById('masterHistoryTable');
+const undoBtn = document.getElementById('undoBtn');
 // tabs (if present)
 const tabGameBtn = document.getElementById('tabGame');
 const tabHistoryBtn = document.getElementById('tabHistory');
@@ -48,6 +49,45 @@ let chart;
 const masterCanvasEl = document.getElementById('masterChartCanvas');
 const masterCtx = masterCanvasEl ? masterCanvasEl.getContext('2d') : null;
 let masterChart;
+
+// --- UNDO SUPPORT ---
+let undoSnapshot = null;
+
+function takeUndoSnapshot() {
+  undoSnapshot = {
+    players: [...players],
+    rounds: rounds.map(r => [...r]),
+    currentScores: [...currentScores],
+    historyPlayers: [...historyPlayers],
+    historyLog: historyLog.map(r => [...r]),
+  };
+}
+
+function restoreUndoSnapshot() {
+  if (!undoSnapshot) return;
+
+  players.splice(0, players.length, ...undoSnapshot.players);
+  rounds.splice(0, rounds.length, ...undoSnapshot.rounds.map(r => [...r]));
+  currentScores = [...undoSnapshot.currentScores];
+
+  historyPlayers.splice(0, historyPlayers.length, ...undoSnapshot.historyPlayers);
+  historyLog.splice(0, historyLog.length, ...undoSnapshot.historyLog.map(r => [...r]));
+
+  // Re-render everything
+  renderScoreInputs();
+  roundNumSpan.textContent = String(rounds.length + 1);
+  historyEditing = false;
+  masterEditing = false;
+
+  updateHistory();
+  updateMasterHistory();
+  updateChart();
+  updateMasterChart();
+
+  syncToFirestore();
+
+  undoSnapshot = null; // single-level undo
+}
 
 // ---------------- RENDERING ----------------
 function renderScoreInputs() {
@@ -391,6 +431,85 @@ function showHistory() {
 }
 if (tabGameBtn) tabGameBtn.onclick = showGame;
 if (tabHistoryBtn) tabHistoryBtn.onclick = showHistory;
+
+
+//undo handlers
+if (undoBtn) undoBtn.onclick = () => {
+  if (!undoSnapshot) {
+    alert('Nothing to undo.');
+    return;
+  }
+  restoreUndoSnapshot();
+};
+
+if (newGameBtn) newGameBtn.onclick = () => {
+  takeUndoSnapshot();   // ← ADD THIS
+
+  players.length = 0;
+  rounds.length = 0;
+  currentScores = [];
+
+  renderScoreInputs();
+  roundNumSpan.textContent = '1';
+  historyEditing = false;
+  updateHistory();
+  updateMasterHistory();
+  updateChart();
+  updateMasterChart();
+
+  gameDoc.set({ players: [], rounds: [] }, { merge: true }).catch(console.error);
+};
+
+if (submitBtn) submitBtn.onclick = () => {
+  const total = currentScores.reduce((a, b) => a + b, 0);
+  if (total !== 0) {
+    alert(`Error: scores must sum to zero! Currently ${total}`);
+    return;
+  }
+
+  takeUndoSnapshot();   // ← ADD THIS
+
+  rounds.push([...currentScores]);
+  renderScoreInputs();
+  roundNumSpan.textContent = String(rounds.length + 1);
+  updateHistory();
+  updateChart();
+  syncToFirestore();
+};
+
+if (addPlayerBtn) addPlayerBtn.onclick = () => {
+  const name = newPlayerInput.value.trim();
+  if (!name) return;
+
+  takeUndoSnapshot();   // ← ADD THIS
+
+  players.push(name);
+  newPlayerInput.value = '';
+  renderScoreInputs();
+  roundNumSpan.textContent = String(rounds.length + 1);
+  updateHistory();
+  updateChart();
+  syncToFirestore();
+};
+if (appendHistoryBtn) appendHistoryBtn.onclick = () => {
+  if (rounds.length === 0) {
+    alert('No rounds to add.');
+    return;
+  }
+
+  takeUndoSnapshot();   // ← ADD THIS
+
+  appendCurrentRoundsToHistory();
+  rounds.length = 0;
+  renderScoreInputs();
+  roundNumSpan.textContent = '1';
+  updateHistory();
+  updateMasterHistory();
+  updateChart();
+  updateMasterChart();
+  syncToFirestore();
+};
+
 
 // ---------------- SNAPSHOT ----------------
 gameDoc.onSnapshot(doc => {
