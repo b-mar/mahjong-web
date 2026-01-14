@@ -42,7 +42,7 @@ const historyTabSection = document.getElementById('historyTab');
 const newGameBtn = document.getElementById('newGameBtn');
 
 // ---------------- CHARTS ----------------
-const ctx = document.getElementById('chartCanvas').getContext('2d');
+const ctx = document.getElementById('chartCanvas')?.getContext('2d');
 let chart;
 
 const masterCanvasEl = document.getElementById('masterChartCanvas');
@@ -98,6 +98,7 @@ function restoreUndoSnapshot() {
 
 // ---------------- RENDER ----------------
 function renderScoreInputs() {
+  if (!scoreInputs) return;
   scoreInputs.innerHTML = '';
   currentScores = players.map(() => 0);
 
@@ -121,6 +122,7 @@ function renderScoreInputs() {
 }
 
 function updateHistory() {
+  if (!historyTable) return;
   historyTable.innerHTML = '';
   const header = historyTable.insertRow();
   header.insertCell().textContent = 'Round';
@@ -134,6 +136,7 @@ function updateHistory() {
 }
 
 function updateChart() {
+  if (!ctx) return;
   const datasets = players.map((name, i) => {
     let cum = 0;
     const data = [{ x: 0, y: 0 }].concat(
@@ -226,7 +229,7 @@ function updateMasterChart() {
 
 function renderAll() {
   renderScoreInputs();
-  roundNumSpan.textContent = rounds.length + 1;
+  if (roundNumSpan) roundNumSpan.textContent = rounds.length + 1;
   updateHistory();
   updateMasterHistory();
   updateChart();
@@ -266,62 +269,74 @@ function syncToFirestore() {
 }
 
 // ---------------- HANDLERS ----------------
-addPlayerBtn.onclick = () => {
-  const name = newPlayerInput.value.trim();
-  if (!name) return;
-  takeUndoSnapshot();
-  players.push(name);
-  newPlayerInput.value = '';
-  renderAll();
-  syncToFirestore();
-};
+if (addPlayerBtn && newPlayerInput) {
+  addPlayerBtn.onclick = () => {
+    const name = newPlayerInput.value.trim();
+    if (!name) return;
+    takeUndoSnapshot();
+    players.push(name);
+    newPlayerInput.value = '';
+    renderAll();
+    syncToFirestore();
+  };
+} else console.warn('Add player button or input missing');
 
-submitBtn.onclick = () => {
-  const sum = currentScores.reduce((a, b) => a + b, 0);
-  if (sum !== 0) return alert('Scores must sum to zero');
-  takeUndoSnapshot();
-  rounds.push([...currentScores]);
-  renderAll();
-  syncToFirestore();
-};
+if (submitBtn) {
+  submitBtn.onclick = () => {
+    const sum = currentScores.reduce((a, b) => a + b, 0);
+    if (sum !== 0) return alert('Scores must sum to zero');
+    takeUndoSnapshot();
+    rounds.push([...currentScores]);
+    renderAll();
+    syncToFirestore();
+  };
+} else console.warn('Submit button missing');
 
-newGameBtn.onclick = () => {
-  takeUndoSnapshot();
-  players.length = 0;
-  rounds.length = 0;
-  currentScores = [];
-  renderAll();
-  syncToFirestore();
-};
+if (newGameBtn) {
+  newGameBtn.onclick = () => {
+    takeUndoSnapshot();
+    players.length = 0;
+    rounds.length = 0;
+    currentScores = [];
+    renderAll();
+    syncToFirestore();
+  };
+} else console.warn('New game button missing');
 
-appendHistoryBtn.onclick = () => {
-  if (!rounds.length) return alert('No rounds to add');
-  takeUndoSnapshot();
-  appendCurrentRoundsToHistory();
-  rounds.length = 0;
-  renderAll();
-  syncToFirestore();
-};
+if (appendHistoryBtn) {
+  appendHistoryBtn.onclick = () => {
+    if (!rounds.length) return alert('No rounds to add');
+    takeUndoSnapshot();
+    appendCurrentRoundsToHistory();
+    rounds.length = 0;
+    renderAll();
+    syncToFirestore();
+  };
+} else console.warn('Append history button missing');
 
-undoBtn.onclick = () => {
-  if (!undoSnapshot) return alert('Nothing to undo');
-  restoreUndoSnapshot();
-};
+if (undoBtn) {
+  undoBtn.onclick = () => {
+    if (!undoSnapshot) return alert('Nothing to undo');
+    restoreUndoSnapshot();
+  };
+} else console.warn('Undo button missing');
 
-tabGameBtn.onclick = () => {
-  gameTabSection.style.display = 'block';
-  historyTabSection.style.display = 'none';
-};
+if (tabGameBtn && tabHistoryBtn && gameTabSection && historyTabSection) {
+  tabGameBtn.onclick = () => {
+    gameTabSection.style.display = 'block';
+    historyTabSection.style.display = 'none';
+  };
 
-tabHistoryBtn.onclick = () => {
-  gameTabSection.style.display = 'none';
-  historyTabSection.style.display = 'block';
+  tabHistoryBtn.onclick = () => {
+    gameTabSection.style.display = 'none';
+    historyTabSection.style.display = 'block';
 
-  requestAnimationFrame(() => {
-    updateMasterChart();
-    masterChart?.resetZoom?.();
-  });
-};
+    requestAnimationFrame(() => {
+      updateMasterChart();
+      masterChart?.resetZoom?.();
+    });
+  };
+} else console.warn('Tab buttons or sections missing');
 
 // ---------------- SNAPSHOT LISTENER ----------------
 gameDoc.onSnapshot(doc => {
