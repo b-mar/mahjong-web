@@ -51,7 +51,7 @@ const ctx = document.getElementById('chartCanvas')?.getContext('2d');
 let chart;
 
 const masterCanvasEl = document.getElementById('masterChartCanvas');
-const masterCtx = masterCanvasEl ? masterCanvasEl.getContext('2d') : null;
+const masterCtx = masterCanvasEl?.getContext('2d');
 let masterChart;
 
 // ---------------- REGISTER ZOOM PLUGIN ----------------
@@ -119,7 +119,7 @@ function renderScoreInputs() {
     scoreInputs.appendChild(row);
   });
 
-  scoreInputs.querySelectorAll('input').forEach(inp => {
+  scoreInputs.querySelectorAll('input')?.forEach(inp => {
     inp.addEventListener('input', e => {
       currentScores[e.target.dataset.index] = Number(e.target.value);
     });
@@ -167,11 +167,7 @@ function updateChart() {
     data: { datasets },
     options: { 
       scales: { 
-        x: {
-          type: 'linear',
-          min: 0,
-          max: rounds.length > 0 ? rounds.length : 1
-        } 
+        x: { type: 'linear', min: 0, max: rounds.length > 0 ? rounds.length : 1 } 
       } 
     }
   });
@@ -218,20 +214,16 @@ function updateMasterChart() {
 
   if (masterChart) masterChart.destroy();
 
+  // ---------------- AUTO-SCALING X AXIS ----------------
+  const maxX = historyLog.length > 0 ? historyLog.length : 1;
+
   masterChart = new Chart(masterCtx, {
     type: 'line',
     data: { datasets },
     options: {
       scales: {
-        x: {
-          type: 'linear',
-          min: 0,
-          max: historyLog.length > 0 ? historyLog.length : 1,
-          title: { display: true, text: 'Rounds' },
-        },
-        y: {
-          title: { display: true, text: 'Cumulative Points' },
-        },
+        x: { type: 'linear', min: 0, max: maxX, title: { display: true, text: 'Rounds' } },
+        y: { title: { display: true, text: 'Cumulative Points' } },
       },
       plugins: {
         zoom: {
@@ -239,6 +231,7 @@ function updateMasterChart() {
           zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' },
         },
       },
+      animation: { duration: 0 } // prevents chart from overshooting when updating
     },
   });
 }
@@ -285,7 +278,111 @@ function syncToFirestore() {
 }
 
 // ---------------- HANDLERS ----------------
-// ... (all previous handlers remain the same)
+addPlayerBtn?.addEventListener('click', () => {
+  const name = newPlayerInput.value.trim();
+  if (!name) return;
+  takeUndoSnapshot();
+  players.push(name);
+  newPlayerInput.value = '';
+  renderAll();
+  syncToFirestore();
+});
 
-// Example: Reset Zoom button
-if (resetZoomBtn) resetZoomBtn.onclick = () => masterChart?.resetZoom?.();
+submitBtn?.addEventListener('click', () => {
+  const sum = currentScores.reduce((a, b) => a + b, 0);
+  if (sum !== 0) return alert('Scores must sum to zero');
+  takeUndoSnapshot();
+  rounds.push([...currentScores]);
+  renderAll();
+  syncToFirestore();
+});
+
+newGameBtn?.addEventListener('click', () => {
+  takeUndoSnapshot();
+  players.length = 0;
+  rounds.length = 0;
+  currentScores = [];
+  renderAll();
+  syncToFirestore();
+});
+
+appendHistoryBtn?.addEventListener('click', () => {
+  if (!rounds.length) return alert('No rounds to add');
+  takeUndoSnapshot();
+  appendCurrentRoundsToHistory();
+  rounds.length = 0;
+  renderAll();
+  syncToFirestore();
+});
+
+undoBtn?.addEventListener('click', () => {
+  if (!undoSnapshot) return alert('Nothing to undo');
+  restoreUndoSnapshot();
+});
+
+// ---------------- TAB SWITCHING ----------------
+tabGameBtn?.addEventListener('click', () => {
+  gameTabSection.style.display = 'block';
+  historyTabSection.style.display = 'none';
+});
+
+tabHistoryBtn?.addEventListener('click', () => {
+  gameTabSection.style.display = 'none';
+  historyTabSection.style.display = 'block';
+  requestAnimationFrame(() => {
+    updateMasterChart(); // auto-scales x-axis dynamically
+    masterChart?.resetZoom?.();
+  });
+});
+
+// ---------------- EDIT / SAVE HISTORY ----------------
+editHistoryBtn?.addEventListener('click', () => {
+  historyEditing = true;
+  editHistoryBtn.style.display = 'none';
+  saveHistoryBtn.style.display = 'inline-block';
+});
+
+saveHistoryBtn?.addEventListener('click', () => {
+  historyEditing = false;
+  editHistoryBtn.style.display = 'inline-block';
+  saveHistoryBtn.style.display = 'none';
+  renderAll(); // re-render values
+  syncToFirestore();
+});
+
+// ---------------- EDIT / SAVE MASTER HISTORY ----------------
+editMasterBtn?.addEventListener('click', () => {
+  masterEditing = true;
+  editMasterBtn.style.display = 'none';
+  saveMasterBtn.style.display = 'inline-block';
+});
+
+saveMasterBtn?.addEventListener('click', () => {
+  masterEditing = false;
+  editMasterBtn.style.display = 'inline-block';
+  saveMasterBtn.style.display = 'none';
+  renderAll(); // re-render values
+  syncToFirestore();
+});
+
+// ---------------- RESET ZOOM ----------------
+resetZoomBtn?.addEventListener('click', () => masterChart?.resetZoom?.());
+
+// ---------------- SNAPSHOT LISTENER ----------------
+gameDoc.onSnapshot(doc => {
+  if (isRestoringUndo) return;
+  const d = doc.data();
+  if (!d) return;
+
+  players.splice(0, players.length, ...(d.players ?? []));
+  rounds.splice(0, rounds.length,
+    ...(d.rounds ?? []).map(r => players.map(p => r[p] ?? 0))
+  );
+
+  historyPlayers.splice(0, historyPlayers.length, ...(d.historyPlayers ?? []));
+  historyLog.splice(0, historyLog.length,
+    ...(d.history ?? []).map(r => historyPlayers.map(p => r[p] ?? 0))
+  );
+
+  renderAll();
+});
