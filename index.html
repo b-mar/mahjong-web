@@ -190,7 +190,6 @@
       background: #f5f5f5;
     }
 
-    /* Responsive adjustments */
     @media (max-width: 640px) {
       main {
         padding: 1rem;
@@ -276,7 +275,36 @@
     </section>
   </main>
 
-  <!-- Load script at the end so DOM is ready -->
+  <!-- Wrap script execution in DOMContentLoaded to ensure all elements exist -->
   <script src="script.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const tabGameBtn = document.getElementById('tabGame');
+      const tabHistoryBtn = document.getElementById('tabHistory');
+      const gameTabSection = document.getElementById('gameTab');
+      const historyTabSection = document.getElementById('historyTab');
+
+      if (tabGameBtn && tabHistoryBtn && gameTabSection && historyTabSection) {
+        tabGameBtn.onclick = () => {
+          gameTabSection.style.display = 'block';
+          historyTabSection.style.display = 'none';
+        };
+
+        tabHistoryBtn.onclick = () => {
+          gameTabSection.style.display = 'none';
+          historyTabSection.style.display = 'block';
+
+          // Optional: reset master chart zoom whenever history tab opens
+          if (window.masterChart) {
+            masterChart.resetZoom?.();
+            // auto scale X and Y
+            masterChart.options.scales.x.min = 0;
+            masterChart.options.scales.x.max = window.historyLog?.length || 1;
+            masterChart.update();
+          }
+        };
+      }
+    });
+  </script>
 </body>
 </html>
