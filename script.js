@@ -5,388 +5,179 @@ const firebaseConfig = {
   projectId: "mahjong-web",
 };
 
-try { firebase.initializeApp(firebaseConfig); } catch {}
+firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const gameDoc = db.collection('games').doc('default');
+const gameDoc = db.collection("games").doc("default");
 
 // ---------------- STATE ----------------
-const players = [];
-const rounds = [];
+let players = [];
+let rounds = [];
 let currentScores = [];
-let historyEditing = false;
 
 let historyPlayers = [];
 let historyLog = [];
+
+let historyEditing = false;
 let masterEditing = false;
 
-// Undo
 let undoSnapshot = null;
 let isRestoringUndo = false;
 
 // ---------------- COLORS ----------------
 const PLAYER_COLORS = [
-  '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
-  '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
-  '#bcbd22', '#17becf', '#aec7e8', '#ffbb78',
-  '#98df8a', '#ff9896', '#c5b0d5',
+  "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
+  "#9467bd", "#8c564b", "#e377c2", "#7f7f7f",
+  "#bcbd22", "#17becf"
 ];
+const getPlayerColor = i => PLAYER_COLORS[i % PLAYER_COLORS.length];
 
-function getPlayerColor(index) {
-  return PLAYER_COLORS[index % PLAYER_COLORS.length];
-}
+// ---------------- DOM READY ----------------
+document.addEventListener("DOMContentLoaded", () => {
 
-// ---------------- UNDO ----------------
-function takeUndoSnapshot() {
-  undoSnapshot = {
-    players: [...players],
-    rounds: rounds.map(r => [...r]),
-    currentScores: [...currentScores],
-    historyPlayers: [...historyPlayers],
-    historyLog: historyLog.map(r => [...r]),
+  // ----- DOM -----
+  const $ = id => document.getElementById(id);
+
+  const historyTable = $("historyTable");
+  const masterHistoryTable = $("masterHistoryTable");
+
+  const editHistoryBtn = $("editHistoryBtn");
+  const saveHistoryBtn = $("saveHistoryBtn");
+  const editMasterBtn = $("editMasterBtn");
+  const saveMasterBtn = $("saveMasterBtn");
+
+  const tabGameBtn = $("tabGame");
+  const tabHistoryBtn = $("tabHistory");
+  const gameTab = $("gameTab");
+  const historyTab = $("historyTab");
+
+  const resetZoomBtn = $("resetZoomBtn");
+
+  // ---------------- EDIT HELPERS ----------------
+  function setTableEditable(table, editable) {
+    if (!table) return;
+    table.querySelectorAll("td").forEach(td => {
+      if (td.cellIndex === 0) return;
+      td.contentEditable = editable;
+      td.style.background = editable ? "#fff7ed" : "";
+    });
+  }
+
+  // ---------------- EDIT BUTTONS ----------------
+  editHistoryBtn.onclick = () => {
+    historyEditing = true;
+    setTableEditable(historyTable, true);
+    editHistoryBtn.style.display = "none";
+    saveHistoryBtn.style.display = "inline-block";
   };
-}
 
-function restoreUndoSnapshot() {
-  if (!undoSnapshot) return;
-  isRestoringUndo = true;
+  saveHistoryBtn.onclick = () => {
+    historyEditing = false;
+    setTableEditable(historyTable, false);
+    editHistoryBtn.style.display = "inline-block";
+    saveHistoryBtn.style.display = "none";
+  };
 
-  players.splice(0, players.length, ...undoSnapshot.players);
-  rounds.splice(0, rounds.length, ...undoSnapshot.rounds.map(r => [...r]));
-  currentScores = [...undoSnapshot.currentScores];
+  editMasterBtn.onclick = () => {
+    masterEditing = true;
+    setTableEditable(masterHistoryTable, true);
+    editMasterBtn.style.display = "none";
+    saveMasterBtn.style.display = "inline-block";
+  };
 
-  historyPlayers.splice(0, historyPlayers.length, ...undoSnapshot.historyPlayers);
-  historyLog.splice(0, historyLog.length, ...undoSnapshot.historyLog.map(r => [...r]));
+  saveMasterBtn.onclick = () => {
+    masterEditing = false;
+    setTableEditable(masterHistoryTable, false);
+    editMasterBtn.style.display = "inline-block";
+    saveMasterBtn.style.display = "none";
+  };
 
-  renderAll();
-  syncToFirestore();
+  // ---------------- TABS ----------------
+  tabGameBtn.onclick = () => {
+    gameTab.style.display = "block";
+    historyTab.style.display = "none";
+  };
 
-  undoSnapshot = null;
-  setTimeout(() => { isRestoringUndo = false; }, 0);
-}
+  tabHistoryBtn.onclick = () => {
+    gameTab.style.display = "none";
+    historyTab.style.display = "block";
+    masterChart?.resetZoom?.();
+  };
 
-// ---------------- HELPERS ----------------
-function appendCurrentRoundsToHistory() {
-  players.forEach(p => {
-    if (!historyPlayers.includes(p)) {
-      historyPlayers.push(p);
-      historyLog.forEach(r => r.push(0));
+  // ---------------- CHART ----------------
+  const ctx = $("masterChartCanvas")?.getContext("2d");
+  let masterChart;
+
+  function renderMasterChart() {
+    if (!ctx) return;
+
+    const datasets = historyPlayers.map((p, i) => {
+      let sum = 0;
+      return {
+        label: p,
+        data: historyLog.map((r, idx) => {
+          sum += r[i] || 0;
+          return { x: idx + 1, y: sum };
+        }),
+        borderColor: getPlayerColor(i),
+        tension: 0.3
+      };
+    });
+
+    masterChart?.destroy();
+    masterChart = new Chart(ctx, {
+      type: "line",
+      data: { datasets },
+      options: {
+        scales: {
+          x: { type: "linear", min: 1, max: Math.max(1, historyLog.length) },
+          y: { beginAtZero: true }
+        },
+        plugins: {
+          zoom: {
+            pan: { enabled: true, mode: "xy" },
+            zoom: { wheel: { enabled: true }, mode: "xy" }
+          }
+        }
+      }
+    });
+  }
+
+  resetZoomBtn.onclick = () => masterChart?.resetZoom?.();
+
+  // ---------------- RENDER TABLES ----------------
+  function renderTables() {
+    if (!historyEditing) {
+      historyTable.innerHTML = "";
+      historyLog.forEach((r, i) => {
+        const row = historyTable.insertRow();
+        row.insertCell().textContent = i + 1;
+        r.forEach(v => row.insertCell().textContent = v);
+      });
     }
-  });
 
-  rounds.forEach(r => {
-    const row = historyPlayers.map(() => 0);
-    players.forEach((p, i) => {
-      row[historyPlayers.indexOf(p)] = r[i] ?? 0;
-    });
-    historyLog.push(row);
-  });
-}
+    if (!masterEditing) {
+      masterHistoryTable.innerHTML = "";
+      historyLog.forEach((r, i) => {
+        const row = masterHistoryTable.insertRow();
+        row.insertCell().textContent = i + 1;
+        r.forEach(v => row.insertCell().textContent = v);
+      });
+    }
+  }
 
-// ---------------- FIRESTORE ----------------
-function syncToFirestore() {
-  gameDoc.set({
-    players,
-    rounds: rounds.map(r =>
-      Object.fromEntries(players.map((p, i) => [p, r[i] ?? 0]))
-    ),
-    historyPlayers,
-    history: historyLog.map(r =>
-      Object.fromEntries(historyPlayers.map((p, i) => [p, r[i] ?? 0]))
-    )
-  }, { merge: true }).catch(console.error);
-}
+  // ---------------- FIRESTORE ----------------
+  gameDoc.onSnapshot(doc => {
+    if (isRestoringUndo || historyEditing || masterEditing) return;
+    const d = doc.data();
+    if (!d) return;
 
-// ---------------- DOM ELEMENTS ----------------
-const newPlayerInput = document.getElementById('newPlayer');
-const addPlayerBtn = document.getElementById('addPlayerBtn');
-const scoreInputs = document.getElementById('scoreInputs');
-const submitBtn = document.getElementById('submitBtn');
-const roundNumSpan = document.getElementById('roundNum');
-const historyTable = document.getElementById('historyTable');
-const appendHistoryBtn = document.getElementById('appendHistoryBtn');
-const masterHistoryTable = document.getElementById('masterHistoryTable');
-const undoBtn = document.getElementById('undoBtn');
-
-const tabGameBtn = document.getElementById('tabGame');
-const tabHistoryBtn = document.getElementById('tabHistory');
-const gameTabSection = document.getElementById('gameTab');
-const historyTabSection = document.getElementById('historyTab');
-
-const newGameBtn = document.getElementById('newGameBtn');
-const resetZoomBtn = document.getElementById('resetZoomBtn');
-const editHistoryBtn = document.getElementById('editHistoryBtn');
-const saveHistoryBtn = document.getElementById('saveHistoryBtn');
-const editMasterBtn = document.getElementById('editMasterBtn');
-const saveMasterBtn = document.getElementById('saveMasterBtn');
-
-const ctx = document.getElementById('chartCanvas')?.getContext('2d');
-let chart;
-
-const masterCanvasEl = document.getElementById('masterChartCanvas');
-const masterCtx = masterCanvasEl ? masterCanvasEl.getContext('2d') : null;
-let masterChart;
-
-// ---------------- REGISTER ZOOM PLUGIN ----------------
-if (window.Chart && window.ChartZoom) {
-  Chart.register(window.ChartZoom);
-}
-
-// ---------------- RENDER FUNCTIONS ----------------
-function renderScoreInputs() {
-  if (!scoreInputs) return;
-  scoreInputs.innerHTML = '';
-  currentScores = players.map(() => 0);
-
-  players.forEach((name, i) => {
-    const row = document.createElement('div');
-    row.style.display = 'flex';
-    row.style.justifyContent = 'space-between';
-    row.style.marginBottom = '0.5rem';
-    row.innerHTML = `
-      <span>${name}</span>
-      <input type="number" value="0" data-index="${i}" style="width:4rem;" />
-    `;
-    scoreInputs.appendChild(row);
-  });
-
-  scoreInputs.querySelectorAll('input').forEach(inp => {
-    inp.addEventListener('input', e => {
-      currentScores[e.target.dataset.index] = Number(e.target.value);
-    });
-  });
-}
-
-function updateHistory() {
-  if (!historyTable) return;
-  historyTable.innerHTML = '';
-  const header = historyTable.insertRow();
-  header.insertCell().textContent = 'Round';
-  players.forEach(p => header.insertCell().textContent = p);
-
-  rounds.forEach((scores, r) => {
-    const row = historyTable.insertRow();
-    row.insertCell().textContent = r + 1;
-    players.forEach((_, i) => row.insertCell().textContent = scores[i] ?? 0);
-  });
-}
-
-function updateChart() {
-  if (!ctx) return;
-  const datasets = players.map((name, i) => {
-    let cum = 0;
-    const data = [{ x: 0, y: 0 }].concat(
-      rounds.map((r, idx) => {
-        cum += r[i] ?? 0;
-        return { x: idx + 1, y: cum };
-      })
+    players = d.players || [];
+    historyPlayers = d.historyPlayers || [];
+    historyLog = (d.history || []).map(r =>
+      historyPlayers.map(p => r[p] || 0)
     );
 
-    return {
-      label: name,
-      data,
-      borderColor: getPlayerColor(i),
-      backgroundColor: getPlayerColor(i),
-      tension: 0.25,
-      pointRadius: 3,
-    };
+    renderTables();
+    renderMasterChart();
   });
-
-  if (chart) chart.destroy();
-  chart = new Chart(ctx, {
-    type: 'line',
-    data: { datasets },
-    options: { 
-      scales: { 
-        x: {
-          type: 'linear',
-          min: 0,
-          max: rounds.length > 0 ? rounds.length : 1
-        } 
-      } 
-    }
-  });
-}
-
-function updateMasterHistory() {
-  if (!masterHistoryTable) return;
-  masterHistoryTable.innerHTML = '';
-
-  const header = masterHistoryTable.insertRow();
-  header.insertCell().textContent = 'Row';
-  historyPlayers.forEach(p => header.insertCell().textContent = p);
-
-  historyLog.forEach((rowVals, i) => {
-    const row = masterHistoryTable.insertRow();
-    row.insertCell().textContent = i + 1;
-    historyPlayers.forEach((_, c) => {
-      row.insertCell().textContent = rowVals[c] ?? 0;
-    });
-  });
-}
-
-function updateMasterChart() {
-  if (!masterCtx) return;
-
-  const datasets = historyPlayers.map((name, c) => {
-    let cum = 0;
-    const data = [{ x: 0, y: 0 }].concat(
-      historyLog.map((r, i) => {
-        cum += r[c] ?? 0;
-        return { x: i + 1, y: cum };
-      })
-    );
-
-    return {
-      label: name,
-      data,
-      borderColor: getPlayerColor(c),
-      backgroundColor: getPlayerColor(c),
-      tension: 0.25,
-      pointRadius: 2,
-    };
-  });
-
-  if (masterChart) masterChart.destroy();
-
-  masterChart = new Chart(masterCtx, {
-    type: 'line',
-    data: { datasets },
-    options: {
-      scales: {
-        x: {
-          type: 'linear',
-          min: 0,
-          max: historyLog.length > 0 ? historyLog.length : 1,
-          title: { display: true, text: 'Rounds' },
-          ticks: { stepSize: 1 }
-        },
-        y: {
-          title: { display: true, text: 'Cumulative Points' },
-        },
-      },
-      plugins: {
-        zoom: {
-          pan: { enabled: true, mode: 'xy' },
-          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' },
-        },
-      },
-    },
-  });
-}
-
-function renderAll() {
-  renderScoreInputs();
-  if (roundNumSpan) roundNumSpan.textContent = rounds.length + 1;
-  updateHistory();
-  updateMasterHistory();
-  updateChart();
-  updateMasterChart();
-}
-
-// ---------------- EVENT HANDLERS ----------------
-document.addEventListener('DOMContentLoaded', () => {
-  // Tabs
-  if (tabGameBtn && tabHistoryBtn && gameTabSection && historyTabSection) {
-    tabGameBtn.onclick = () => {
-      gameTabSection.style.display = 'block';
-      historyTabSection.style.display = 'none';
-    };
-    tabHistoryBtn.onclick = () => {
-      gameTabSection.style.display = 'none';
-      historyTabSection.style.display = 'block';
-      updateMasterChart(); // auto-scale chart
-    };
-  }
-
-  // Undo
-  if (undoBtn) undoBtn.onclick = () => restoreUndoSnapshot();
-
-  // Game buttons
-  if (addPlayerBtn) addPlayerBtn.onclick = () => {
-    const name = newPlayerInput.value.trim();
-    if (!name) return;
-    takeUndoSnapshot();
-    players.push(name);
-    newPlayerInput.value = '';
-    renderAll();
-    syncToFirestore();
-  };
-
-  if (submitBtn) submitBtn.onclick = () => {
-    if (currentScores.reduce((a,b)=>a+b,0) !== 0) return alert('Scores must sum to zero');
-    takeUndoSnapshot();
-    rounds.push([...currentScores]);
-    renderAll();
-    syncToFirestore();
-  };
-
-  if (newGameBtn) newGameBtn.onclick = () => {
-    takeUndoSnapshot();
-    players.length = 0;
-    rounds.length = 0;
-    currentScores = [];
-    renderAll();
-    syncToFirestore();
-  };
-
-  if (appendHistoryBtn) appendHistoryBtn.onclick = () => {
-    if (!rounds.length) return alert('No rounds to add');
-    takeUndoSnapshot();
-    appendCurrentRoundsToHistory();
-    rounds.length = 0;
-    renderAll();
-    syncToFirestore();
-  };
-
-  if (resetZoomBtn) resetZoomBtn.onclick = () => masterChart?.resetZoom?.();
-
-  // Edit / Save buttons
-  if (editHistoryBtn && saveHistoryBtn) {
-    editHistoryBtn.onclick = () => {
-      historyEditing = true;
-      historyTable.contentEditable = "true";
-      editHistoryBtn.style.display = 'none';
-      saveHistoryBtn.style.display = 'inline-block';
-    };
-    saveHistoryBtn.onclick = () => {
-      historyEditing = false;
-      historyTable.contentEditable = "false";
-      editHistoryBtn.style.display = 'inline-block';
-      saveHistoryBtn.style.display = 'none';
-    };
-  }
-
-  if (editMasterBtn && saveMasterBtn) {
-    editMasterBtn.onclick = () => {
-      masterEditing = true;
-      masterHistoryTable.contentEditable = "true";
-      editMasterBtn.style.display = 'none';
-      saveMasterBtn.style.display = 'inline-block';
-    };
-    saveMasterBtn.onclick = () => {
-      masterEditing = false;
-      masterHistoryTable.contentEditable = "false";
-      editMasterBtn.style.display = 'inline-block';
-      saveMasterBtn.style.display = 'none';
-    };
-  }
-});
-
-// ---------------- FIRESTORE SNAPSHOT ----------------
-gameDoc.onSnapshot(doc => {
-  if (isRestoringUndo) return;
-  const d = doc.data();
-  if (!d) return;
-
-  players.splice(0, players.length, ...(d.players ?? []));
-  rounds.splice(0, rounds.length,
-    ...(d.rounds ?? []).map(r => players.map(p => r[p] ?? 0))
-  );
-
-  historyPlayers.splice(0, historyPlayers.length, ...(d.historyPlayers ?? []));
-  historyLog.splice(0, historyLog.length,
-    ...(d.history ?? []).map(r => historyPlayers.map(p => r[p] ?? 0))
-  );
-
-  renderAll();
 });
