@@ -188,7 +188,19 @@ function updateMasterHistory() {
       row.insertCell().textContent = rowVals[c] ?? 0;
     });
   });
+
+  // Add a summary row at the bottom
+  const summaryRow = masterHistoryTable.insertRow();
+  summaryRow.insertCell().textContent = 'Total';
+  historyPlayers.forEach((_, c) => {
+    const total = historyLog.reduce((sum, row) => sum + (row[c] ?? 0), 0);
+    const cell = summaryRow.insertCell();
+    cell.textContent = total;
+    cell.style.fontWeight = '600';
+    cell.style.background = '#f3f4f6'; // subtle highlight
+  });
 }
+
 
 function updateMasterChart() {
   if (!masterCtx) return;
