@@ -19,7 +19,7 @@
       font-family: "Inter", -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       margin: 0;
       padding: 0;
-      background: #f9fafb; /* light gray background */
+      background: #f9fafb; 
       color: #111827;
     }
 
@@ -275,36 +275,7 @@
     </section>
   </main>
 
-  <!-- Wrap script execution in DOMContentLoaded to ensure all elements exist -->
+  <!-- Only include main JS file -->
   <script src="script.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const tabGameBtn = document.getElementById('tabGame');
-      const tabHistoryBtn = document.getElementById('tabHistory');
-      const gameTabSection = document.getElementById('gameTab');
-      const historyTabSection = document.getElementById('historyTab');
-
-      if (tabGameBtn && tabHistoryBtn && gameTabSection && historyTabSection) {
-        tabGameBtn.onclick = () => {
-          gameTabSection.style.display = 'block';
-          historyTabSection.style.display = 'none';
-        };
-
-        tabHistoryBtn.onclick = () => {
-          gameTabSection.style.display = 'none';
-          historyTabSection.style.display = 'block';
-
-          // Optional: reset master chart zoom whenever history tab opens
-          if (window.masterChart) {
-            masterChart.resetZoom?.();
-            // auto scale X and Y
-            masterChart.options.scales.x.min = 0;
-            masterChart.options.scales.x.max = window.historyLog?.length || 1;
-            masterChart.update();
-          }
-        };
-      }
-    });
-  </script>
 </body>
 </html>
