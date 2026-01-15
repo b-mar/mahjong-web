@@ -214,7 +214,6 @@ function updateMasterChart() {
 
   if (masterChart) masterChart.destroy();
 
-  // ---------------- AUTO-SCALING X AXIS ----------------
   const maxX = historyLog.length > 0 ? historyLog.length : 1;
 
   masterChart = new Chart(masterCtx, {
@@ -231,7 +230,7 @@ function updateMasterChart() {
           zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' },
         },
       },
-      animation: { duration: 0 } // prevents chart from overshooting when updating
+      animation: { duration: 0 }
     },
   });
 }
@@ -265,16 +264,20 @@ function appendCurrentRoundsToHistory() {
 
 // ---------------- FIRESTORE ----------------
 function syncToFirestore() {
-  gameDoc.set({
-    players,
-    rounds: rounds.map(r =>
-      Object.fromEntries(players.map((p, i) => [p, r[i] ?? 0]))
-    ),
-    historyPlayers,
-    history: historyLog.map(r =>
-      Object.fromEntries(historyPlayers.map((p, i) => [p, r[i] ?? 0]))
-    )
-  }, { merge: true }).catch(console.error);
+  try {
+    gameDoc.set({
+      players,
+      rounds: rounds.map(r =>
+        Object.fromEntries(players.map((p, i) => [p, r[i] ?? 0]))
+      ),
+      historyPlayers,
+      history: historyLog.map(r =>
+        Object.fromEntries(historyPlayers.map((p, i) => [p, r[i] ?? 0]))
+      )
+    }, { merge: true });
+  } catch (err) {
+    console.error("Error syncing to Firestore:", err);
+  }
 }
 
 // ---------------- HANDLERS ----------------
@@ -346,7 +349,7 @@ saveHistoryBtn?.addEventListener('click', () => {
   historyEditing = false;
   editHistoryBtn.style.display = 'inline-block';
   saveHistoryBtn.style.display = 'none';
-  renderAll(); // re-render values
+  renderAll();
   syncToFirestore();
 });
 
@@ -361,7 +364,7 @@ saveMasterBtn?.addEventListener('click', () => {
   masterEditing = false;
   editMasterBtn.style.display = 'inline-block';
   saveMasterBtn.style.display = 'none';
-  renderAll(); // re-render values
+  renderAll();
   syncToFirestore();
 });
 
