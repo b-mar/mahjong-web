@@ -5,9 +5,33 @@ const firebaseConfig = {
   projectId: "mahjong-web",
 };
 
-try { firebase.initializeApp(firebaseConfig); } catch {}
+// Initialize Firebase
+try {
+  firebase.initializeApp(firebaseConfig);
+  console.log("Firebase initialized successfully");
+} catch (e) {
+  console.error("Firebase initialization error:", e);
+}
+
 const db = firebase.firestore();
 const gameDoc = db.collection('games').doc('default');
+
+// Ensure the default game document exists
+gameDoc.get().then(doc => {
+  if (!doc.exists) {
+    console.log("Creating default game document...");
+    gameDoc.set({
+      players: [],
+      rounds: [],
+      historyPlayers: [],
+      history: []
+    });
+  } else {
+    console.log("Default game document exists:", doc.data());
+  }
+}).catch(err => {
+  console.error("Error fetching default game document:", err);
+});
 
 // ---------------- STATE ----------------
 const players = [];
@@ -225,7 +249,9 @@ saveMasterBtn?.addEventListener('click', () => {
 
 // ---------------- SNAPSHOT LISTENER ----------------
 gameDoc.onSnapshot(doc => {
+  console.log("Firestore snapshot received:", doc.data());
   if (isRestoringUndo || historyEditing || masterEditing) return;
+
   const d = doc.data();
   if (!d) return;
 
