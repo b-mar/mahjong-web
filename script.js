@@ -5,33 +5,9 @@ const firebaseConfig = {
   projectId: "mahjong-web",
 };
 
-// Initialize Firebase
-try {
-  firebase.initializeApp(firebaseConfig);
-  console.log("Firebase initialized successfully");
-} catch (e) {
-  console.error("Firebase initialization error:", e);
-}
-
+try { firebase.initializeApp(firebaseConfig); } catch {}
 const db = firebase.firestore();
 const gameDoc = db.collection('games').doc('default');
-
-// Ensure the default game document exists
-gameDoc.get().then(doc => {
-  if (!doc.exists) {
-    console.log("Creating default game document...");
-    gameDoc.set({
-      players: [],
-      rounds: [],
-      historyPlayers: [],
-      history: []
-    });
-  } else {
-    console.log("Default game document exists:", doc.data());
-  }
-}).catch(err => {
-  console.error("Error fetching default game document:", err);
-});
 
 // ---------------- STATE ----------------
 const players = [];
@@ -95,26 +71,6 @@ function getPlayerColor(index) {
   return PLAYER_COLORS[index % PLAYER_COLORS.length];
 }
 
-// ---------------- EDIT HELPERS ----------------
-function setTableEditable(table, editable) {
-  if (!table) return;
-  table.querySelectorAll('td').forEach(td => {
-    if (td.cellIndex === 0) return; // skip Round / Row #
-    td.contentEditable = editable;
-    td.style.background = editable ? '#fff7ed' : '';
-  });
-}
-
-function parseTableToArray(table, targetArray) {
-  targetArray.length = 0;
-  Array.from(table.rows).slice(1).forEach(row => {
-    const vals = Array.from(row.cells)
-      .slice(1)
-      .map(td => Number(td.textContent) || 0);
-    targetArray.push(vals);
-  });
-}
-
 // ---------------- UNDO ----------------
 function takeUndoSnapshot() {
   undoSnapshot = {
@@ -142,7 +98,7 @@ function restoreUndoSnapshot() {
   syncToFirestore();
 
   undoSnapshot = null;
-  setTimeout(() => (isRestoringUndo = false), 0);
+  setTimeout(() => { isRestoringUndo = false; }, 0);
 }
 
 // ---------------- RENDER ----------------
@@ -155,6 +111,7 @@ function renderScoreInputs() {
     const row = document.createElement('div');
     row.style.display = 'flex';
     row.style.justifyContent = 'space-between';
+    row.style.marginBottom = '0.5rem';
     row.innerHTML = `
       <span>${name}</span>
       <input type="number" value="0" data-index="${i}" style="width:4rem;" />
@@ -162,7 +119,7 @@ function renderScoreInputs() {
     scoreInputs.appendChild(row);
   });
 
-  scoreInputs.querySelectorAll('input').forEach(inp => {
+  scoreInputs.querySelectorAll('input')?.forEach(inp => {
     inp.addEventListener('input', e => {
       currentScores[e.target.dataset.index] = Number(e.target.value);
     });
@@ -172,7 +129,6 @@ function renderScoreInputs() {
 function updateHistory() {
   if (!historyTable) return;
   historyTable.innerHTML = '';
-
   const header = historyTable.insertRow();
   header.insertCell().textContent = 'Round';
   players.forEach(p => header.insertCell().textContent = p);
@@ -180,9 +136,40 @@ function updateHistory() {
   rounds.forEach((scores, r) => {
     const row = historyTable.insertRow();
     row.insertCell().textContent = r + 1;
-    players.forEach((_, i) =>
-      row.insertCell().textContent = scores[i] ?? 0
+    players.forEach((_, i) => row.insertCell().textContent = scores[i] ?? 0);
+  });
+}
+
+function updateChart() {
+  if (!ctx) return;
+  const datasets = players.map((name, i) => {
+    let cum = 0;
+    const data = [{ x: 0, y: 0 }].concat(
+      rounds.map((r, idx) => {
+        cum += r[i] ?? 0;
+        return { x: idx + 1, y: cum };
+      })
     );
+
+    return {
+      label: name,
+      data,
+      borderColor: getPlayerColor(i),
+      backgroundColor: getPlayerColor(i),
+      tension: 0.25,
+      pointRadius: 3,
+    };
+  });
+
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: { 
+      scales: { 
+        x: { type: 'linear', min: 0, max: rounds.length > 0 ? rounds.length : 1 } 
+      } 
+    }
   });
 }
 
@@ -194,64 +181,196 @@ function updateMasterHistory() {
   header.insertCell().textContent = 'Row';
   historyPlayers.forEach(p => header.insertCell().textContent = p);
 
-  historyLog.forEach((vals, i) => {
+  historyLog.forEach((rowVals, i) => {
     const row = masterHistoryTable.insertRow();
     row.insertCell().textContent = i + 1;
-    historyPlayers.forEach((_, c) =>
-      row.insertCell().textContent = vals[c] ?? 0
-    );
+    historyPlayers.forEach((_, c) => {
+      row.insertCell().textContent = rowVals[c] ?? 0;
+    });
   });
 }
 
-// ---------------- EDIT / SAVE (GAME HISTORY) ----------------
+function updateMasterChart() {
+  if (!masterCtx) return;
+
+  const datasets = historyPlayers.map((name, c) => {
+    let cum = 0;
+    const data = [{ x: 0, y: 0 }].concat(
+      historyLog.map((r, i) => {
+        cum += r[c] ?? 0;
+        return { x: i + 1, y: cum };
+      })
+    );
+
+    return {
+      label: name,
+      data,
+      borderColor: getPlayerColor(c),
+      backgroundColor: getPlayerColor(c),
+      tension: 0.25,
+      pointRadius: 2,
+    };
+  });
+
+  if (masterChart) masterChart.destroy();
+
+  // ---------------- AUTO-SCALING X AXIS ----------------
+  const maxX = historyLog.length > 0 ? historyLog.length : 1;
+
+  masterChart = new Chart(masterCtx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      scales: {
+        x: { type: 'linear', min: 0, max: maxX, title: { display: true, text: 'Rounds' } },
+        y: { title: { display: true, text: 'Cumulative Points' } },
+      },
+      plugins: {
+        zoom: {
+          pan: { enabled: true, mode: 'xy' },
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' },
+        },
+      },
+      animation: { duration: 0 } // prevents chart from overshooting when updating
+    },
+  });
+}
+
+function renderAll() {
+  renderScoreInputs();
+  if (roundNumSpan) roundNumSpan.textContent = rounds.length + 1;
+  updateHistory();
+  updateMasterHistory();
+  updateChart();
+  updateMasterChart();
+}
+
+// ---------------- HELPERS ----------------
+function appendCurrentRoundsToHistory() {
+  players.forEach(p => {
+    if (!historyPlayers.includes(p)) {
+      historyPlayers.push(p);
+      historyLog.forEach(r => r.push(0));
+    }
+  });
+
+  rounds.forEach(r => {
+    const row = historyPlayers.map(() => 0);
+    players.forEach((p, i) => {
+      row[historyPlayers.indexOf(p)] = r[i] ?? 0;
+    });
+    historyLog.push(row);
+  });
+}
+
+// ---------------- FIRESTORE ----------------
+function syncToFirestore() {
+  gameDoc.set({
+    players,
+    rounds: rounds.map(r =>
+      Object.fromEntries(players.map((p, i) => [p, r[i] ?? 0]))
+    ),
+    historyPlayers,
+    history: historyLog.map(r =>
+      Object.fromEntries(historyPlayers.map((p, i) => [p, r[i] ?? 0]))
+    )
+  }, { merge: true }).catch(console.error);
+}
+
+// ---------------- HANDLERS ----------------
+addPlayerBtn?.addEventListener('click', () => {
+  const name = newPlayerInput.value.trim();
+  if (!name) return;
+  takeUndoSnapshot();
+  players.push(name);
+  newPlayerInput.value = '';
+  renderAll();
+  syncToFirestore();
+});
+
+submitBtn?.addEventListener('click', () => {
+  const sum = currentScores.reduce((a, b) => a + b, 0);
+  if (sum !== 0) return alert('Scores must sum to zero');
+  takeUndoSnapshot();
+  rounds.push([...currentScores]);
+  renderAll();
+  syncToFirestore();
+});
+
+newGameBtn?.addEventListener('click', () => {
+  takeUndoSnapshot();
+  players.length = 0;
+  rounds.length = 0;
+  currentScores = [];
+  renderAll();
+  syncToFirestore();
+});
+
+appendHistoryBtn?.addEventListener('click', () => {
+  if (!rounds.length) return alert('No rounds to add');
+  takeUndoSnapshot();
+  appendCurrentRoundsToHistory();
+  rounds.length = 0;
+  renderAll();
+  syncToFirestore();
+});
+
+undoBtn?.addEventListener('click', () => {
+  if (!undoSnapshot) return alert('Nothing to undo');
+  restoreUndoSnapshot();
+});
+
+// ---------------- TAB SWITCHING ----------------
+tabGameBtn?.addEventListener('click', () => {
+  gameTabSection.style.display = 'block';
+  historyTabSection.style.display = 'none';
+});
+
+tabHistoryBtn?.addEventListener('click', () => {
+  gameTabSection.style.display = 'none';
+  historyTabSection.style.display = 'block';
+  requestAnimationFrame(() => {
+    updateMasterChart(); // auto-scales x-axis dynamically
+    masterChart?.resetZoom?.();
+  });
+});
+
+// ---------------- EDIT / SAVE HISTORY ----------------
 editHistoryBtn?.addEventListener('click', () => {
   historyEditing = true;
-  setTableEditable(historyTable, true);
   editHistoryBtn.style.display = 'none';
   saveHistoryBtn.style.display = 'inline-block';
 });
 
 saveHistoryBtn?.addEventListener('click', () => {
   historyEditing = false;
-  setTableEditable(historyTable, false);
-
-  takeUndoSnapshot();
-  parseTableToArray(historyTable, rounds);
-
   editHistoryBtn.style.display = 'inline-block';
   saveHistoryBtn.style.display = 'none';
-
-  renderAll();
+  renderAll(); // re-render values
   syncToFirestore();
 });
 
-// ---------------- EDIT / SAVE (MASTER HISTORY) ----------------
+// ---------------- EDIT / SAVE MASTER HISTORY ----------------
 editMasterBtn?.addEventListener('click', () => {
   masterEditing = true;
-  setTableEditable(masterHistoryTable, true);
   editMasterBtn.style.display = 'none';
   saveMasterBtn.style.display = 'inline-block';
 });
 
 saveMasterBtn?.addEventListener('click', () => {
   masterEditing = false;
-  setTableEditable(masterHistoryTable, false);
-
-  takeUndoSnapshot();
-  parseTableToArray(masterHistoryTable, historyLog);
-
   editMasterBtn.style.display = 'inline-block';
   saveMasterBtn.style.display = 'none';
-
-  renderAll();
+  renderAll(); // re-render values
   syncToFirestore();
 });
 
+// ---------------- RESET ZOOM ----------------
+resetZoomBtn?.addEventListener('click', () => masterChart?.resetZoom?.());
+
 // ---------------- SNAPSHOT LISTENER ----------------
 gameDoc.onSnapshot(doc => {
-  console.log("Firestore snapshot received:", doc.data());
-  if (isRestoringUndo || historyEditing || masterEditing) return;
-
+  if (isRestoringUndo) return;
   const d = doc.data();
   if (!d) return;
 
