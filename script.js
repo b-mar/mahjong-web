@@ -71,26 +71,6 @@ function getPlayerColor(index) {
   return PLAYER_COLORS[index % PLAYER_COLORS.length];
 }
 
-// ---------------- EDIT HELPERS ----------------
-function setTableEditable(table, editable) {
-  if (!table) return;
-  table.querySelectorAll('td').forEach(td => {
-    if (td.cellIndex === 0) return; // skip Round / Row #
-    td.contentEditable = editable;
-    td.style.background = editable ? '#fff7ed' : '';
-  });
-}
-
-function parseTableToArray(table, targetArray) {
-  targetArray.length = 0;
-  Array.from(table.rows).slice(1).forEach(row => {
-    const vals = Array.from(row.cells)
-      .slice(1)
-      .map(td => Number(td.textContent) || 0);
-    targetArray.push(vals);
-  });
-}
-
 // ---------------- UNDO ----------------
 function takeUndoSnapshot() {
   undoSnapshot = {
@@ -284,16 +264,20 @@ function appendCurrentRoundsToHistory() {
 
 // ---------------- FIRESTORE ----------------
 function syncToFirestore() {
-  gameDoc.set({
-    players,
-    rounds: rounds.map(r =>
-      Object.fromEntries(players.map((p, i) => [p, r[i] ?? 0]))
-    ),
-    historyPlayers,
-    history: historyLog.map(r =>
-      Object.fromEntries(historyPlayers.map((p, i) => [p, r[i] ?? 0]))
-    )
-  }, { merge: true }).catch(console.error);
+  try {
+    gameDoc.set({
+      players,
+      rounds: rounds.map(r =>
+        Object.fromEntries(players.map((p, i) => [p, r[i] ?? 0]))
+      ),
+      historyPlayers,
+      history: historyLog.map(r =>
+        Object.fromEntries(historyPlayers.map((p, i) => [p, r[i] ?? 0]))
+      )
+    }, { merge: true });
+  } catch (err) {
+    console.error("Error syncing to Firestore:", err);
+  }
 }
 
 // ---------------- HANDLERS ----------------
@@ -349,7 +333,7 @@ tabHistoryBtn?.addEventListener('click', () => {
   gameTabSection.style.display = 'none';
   historyTabSection.style.display = 'block';
   requestAnimationFrame(() => {
-    updateMasterChart();
+    updateMasterChart(); // auto-scales x-axis dynamically
     masterChart?.resetZoom?.();
   });
 });
@@ -357,20 +341,14 @@ tabHistoryBtn?.addEventListener('click', () => {
 // ---------------- EDIT / SAVE HISTORY ----------------
 editHistoryBtn?.addEventListener('click', () => {
   historyEditing = true;
-  setTableEditable(historyTable, true);  // ENABLE EDITING
   editHistoryBtn.style.display = 'none';
   saveHistoryBtn.style.display = 'inline-block';
 });
 
 saveHistoryBtn?.addEventListener('click', () => {
   historyEditing = false;
-  setTableEditable(historyTable, false);  // DISABLE EDITING
-  takeUndoSnapshot();
-  parseTableToArray(historyTable, rounds); // SAVE CHANGES
-
   editHistoryBtn.style.display = 'inline-block';
   saveHistoryBtn.style.display = 'none';
-
   renderAll();
   syncToFirestore();
 });
@@ -378,20 +356,14 @@ saveHistoryBtn?.addEventListener('click', () => {
 // ---------------- EDIT / SAVE MASTER HISTORY ----------------
 editMasterBtn?.addEventListener('click', () => {
   masterEditing = true;
-  setTableEditable(masterHistoryTable, true); // ENABLE EDITING
   editMasterBtn.style.display = 'none';
   saveMasterBtn.style.display = 'inline-block';
 });
 
 saveMasterBtn?.addEventListener('click', () => {
   masterEditing = false;
-  setTableEditable(masterHistoryTable, false); // DISABLE EDITING
-  takeUndoSnapshot();
-  parseTableToArray(masterHistoryTable, historyLog); // SAVE CHANGES
-
   editMasterBtn.style.display = 'inline-block';
   saveMasterBtn.style.display = 'none';
-
   renderAll();
   syncToFirestore();
 });
@@ -401,7 +373,7 @@ resetZoomBtn?.addEventListener('click', () => masterChart?.resetZoom?.());
 
 // ---------------- SNAPSHOT LISTENER ----------------
 gameDoc.onSnapshot(doc => {
-  if (isRestoringUndo || historyEditing || masterEditing) return;
+  if (isRestoringUndo) return;
   const d = doc.data();
   if (!d) return;
 
