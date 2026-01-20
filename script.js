@@ -385,10 +385,15 @@ tabHistoryBtn?.addEventListener('click', () => {
   gameTabSection.style.display = 'none';
   historyTabSection.style.display = 'block';
 
+  // 🔑 FORCE re-render so edit mode applies visibly
+  renderAll();
+
   requestAnimationFrame(() => {
     updateMasterChart();
     masterChart?.resetZoom?.();
   });
+});
+
 
   if (historyEditing || masterEditing) {
     renderAll();
