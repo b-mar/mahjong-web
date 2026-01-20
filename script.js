@@ -40,7 +40,6 @@ const gameTabSection = document.getElementById('gameTab');
 const historyTabSection = document.getElementById('historyTab');
 
 const newGameBtn = document.getElementById('newGameBtn');
-const resetZoomBtn = document.getElementById('resetZoomBtn');
 const editHistoryBtn = document.getElementById('editHistoryBtn');
 const saveHistoryBtn = document.getElementById('saveHistoryBtn');
 const editMasterBtn = document.getElementById('editMasterBtn');
@@ -53,11 +52,6 @@ let chart;
 const masterCanvasEl = document.getElementById('masterChartCanvas');
 const masterCtx = masterCanvasEl?.getContext('2d');
 let masterChart;
-
-// ---------------- REGISTER ZOOM PLUGIN ----------------
-if (window.Chart && window.ChartZoom) {
-  Chart.register(window.ChartZoom);
-}
 
 // ---------------- COLORS ----------------
 const PLAYER_COLORS = [
@@ -267,7 +261,7 @@ function updateMasterChart() {
     data: { datasets },
     options: {
       scales: { x: { type: 'linear', min: 0, max: historyLog.length || 1, title: { display: true, text: 'Rounds' } }, y: { title: { display: true, text: 'Cumulative Points' } } },
-      plugins: { zoom: { pan: { enabled: true, mode: 'xy' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' } } },
+      plugins: {}, // zoom removed
       animation: { duration: 0 }
     },
   });
@@ -365,7 +359,6 @@ tabHistoryBtn?.addEventListener('click', () => {
   gameTabSection.style.display = 'none';
   historyTabSection.style.display = 'block';
   renderAll();
-  requestAnimationFrame(() => { updateMasterChart(); masterChart?.resetZoom?.(); });
 });
 
 // ---------------- EDIT / SAVE HISTORY ----------------
@@ -375,9 +368,6 @@ saveHistoryBtn?.addEventListener('click', () => { historyEditing = false; undoBt
 editMasterBtn?.addEventListener('click', () => { masterEditing = true; undoBtn.disabled = true; editMasterBtn.style.display = 'none'; saveMasterBtn.style.display = 'inline-block'; renderAll(); });
 saveMasterBtn?.addEventListener('click', () => { masterEditing = false; undoBtn.disabled = false; editMasterBtn.style.display = 'inline-block'; saveMasterBtn.style.display = 'none'; renderAll(); syncToFirestore(); });
 
-// ---------------- RESET ZOOM ----------------
-resetZoomBtn?.addEventListener('click', () => masterChart?.resetZoom?.());
-
 // ---------------- FIRESTORE SNAPSHOT ----------------
 gameDoc.onSnapshot(doc => {
   if (isRestoringUndo) return;
@@ -385,13 +375,10 @@ gameDoc.onSnapshot(doc => {
   const d = doc.data();
   if (!d) return;
 
-  // Block Firestore overwrites during manual edits
   if ((historyEditing || masterEditing) && undoSnapshot) return;
 
-  // Load players
   players.splice(0, players.length, ...(d.players ?? []));
 
-  // Convert Firestore rounds (objects) to arrays
   rounds.splice(
     0,
     rounds.length,
@@ -400,7 +387,6 @@ gameDoc.onSnapshot(doc => {
 
   currentScores = players.map(() => 0);
 
-  // Load history
   historyPlayers.splice(0, historyPlayers.length, ...(d.historyPlayers ?? []));
   historyLog.splice(
     0,
