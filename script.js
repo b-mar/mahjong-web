@@ -83,7 +83,7 @@ function takeUndoSnapshot() {
 }
 
 function restoreUndoSnapshot() {
-  if (!undoSnapshot) return;
+  if (!undoSnapshot) return alert("Nothing to undo");
 
   isRestoringUndo = true;
 
@@ -105,7 +105,6 @@ function restoreUndoSnapshot() {
   undoSnapshot = null;
   setTimeout(() => { isRestoringUndo = false; }, 0);
 }
-
 
 // ---------------- RENDER ----------------
 function renderScoreInputs() {
@@ -140,32 +139,102 @@ function updateHistory() {
   header.insertCell().textContent = 'Round';
   players.forEach(p => header.insertCell().textContent = p);
 
+  let totalScores = players.map(() => 0); // total per player
+
   rounds.forEach((scores, r) => {
     const row = historyTable.insertRow();
     row.insertCell().textContent = r + 1;
 
     players.forEach((_, i) => {
       const cell = row.insertCell();
+      let value = scores[i] ?? 0;
 
       if (historyEditing) {
         const input = document.createElement('input');
         input.type = 'number';
-        input.value = scores[i] ?? 0;
+        input.value = value;
         input.style.width = '4rem';
 
+        input.addEventListener('focus', () => {
+          if (!undoSnapshot) takeUndoSnapshot();
+        });
+
         input.addEventListener('change', () => {
-          takeUndoSnapshot();
           rounds[r][i] = Number(input.value);
+          updateHistory();
+          updateChart();
         });
 
         cell.appendChild(input);
       } else {
-        cell.textContent = scores[i] ?? 0;
+        cell.textContent = value;
       }
+
+      totalScores[i] += value;
     });
+  });
+
+  // --- TOTAL ROW ---
+  const totalRow = historyTable.insertRow();
+  totalRow.insertCell().textContent = 'Total';
+  totalScores.forEach(sum => {
+    const cell = totalRow.insertCell();
+    cell.textContent = sum;
+    cell.style.fontWeight = '600';
+    cell.style.background = '#f3f4f6';
   });
 }
 
+function updateMasterHistory() {
+  if (!masterHistoryTable) return;
+  masterHistoryTable.innerHTML = '';
+
+  const header = masterHistoryTable.insertRow();
+  header.insertCell().textContent = 'Row';
+  historyPlayers.forEach(p => header.insertCell().textContent = p);
+
+  historyLog.forEach((rowVals, r) => {
+    const row = masterHistoryTable.insertRow();
+    row.insertCell().textContent = r + 1;
+
+    historyPlayers.forEach((_, c) => {
+      const cell = row.insertCell();
+      let value = rowVals[c] ?? 0;
+
+      if (masterEditing) {
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.value = value;
+        input.style.width = '4rem';
+
+        input.addEventListener('focus', () => {
+          if (!undoSnapshot) takeUndoSnapshot();
+        });
+
+        input.addEventListener('change', () => {
+          historyLog[r][c] = Number(input.value);
+          updateMasterHistory();
+          updateMasterChart();
+        });
+
+        cell.appendChild(input);
+      } else {
+        cell.textContent = value;
+      }
+    });
+  });
+
+  // --- TOTAL ROW ---
+  const summaryRow = masterHistoryTable.insertRow();
+  summaryRow.insertCell().textContent = 'Total';
+  historyPlayers.forEach((_, c) => {
+    const total = historyLog.reduce((sum, row) => sum + (row[c] ?? 0), 0);
+    const cell = summaryRow.insertCell();
+    cell.textContent = total;
+    cell.style.fontWeight = '600';
+    cell.style.background = '#f3f4f6';
+  });
+}
 
 function updateChart() {
   if (!ctx) return;
@@ -199,35 +268,6 @@ function updateChart() {
     }
   });
 }
-
-function updateMasterHistory() {
-  if (!masterHistoryTable) return;
-  masterHistoryTable.innerHTML = '';
-
-  const header = masterHistoryTable.insertRow();
-  header.insertCell().textContent = 'Row';
-  historyPlayers.forEach(p => header.insertCell().textContent = p);
-
-  historyLog.forEach((rowVals, i) => {
-    const row = masterHistoryTable.insertRow();
-    row.insertCell().textContent = i + 1;
-    historyPlayers.forEach((_, c) => {
-      row.insertCell().textContent = rowVals[c] ?? 0;
-    });
-  });
-
-  // Add a summary row at the bottom
-  const summaryRow = masterHistoryTable.insertRow();
-  summaryRow.insertCell().textContent = 'Total';
-  historyPlayers.forEach((_, c) => {
-    const total = historyLog.reduce((sum, row) => sum + (row[c] ?? 0), 0);
-    const cell = summaryRow.insertCell();
-    cell.textContent = total;
-    cell.style.fontWeight = '600';
-    cell.style.background = '#f3f4f6'; // subtle highlight
-  });
-}
-
 
 function updateMasterChart() {
   if (!masterCtx) return;
@@ -276,17 +316,12 @@ function updateMasterChart() {
 
 function renderAll() {
   renderScoreInputs();
-
-  if (roundNumSpan) {
-    roundNumSpan.textContent = rounds.length + 1;
-  }
-
-  updateHistory();        // uses historyEditing
-  updateMasterHistory();  // uses masterEditing
+  if (roundNumSpan) roundNumSpan.textContent = rounds.length + 1;
+  updateHistory();
+  updateMasterHistory();
   updateChart();
   updateMasterChart();
 }
-
 
 // ---------------- HELPERS ----------------
 function appendCurrentRoundsToHistory() {
@@ -324,7 +359,7 @@ function syncToFirestore() {
   }
 }
 
-// ---------------- HANDLERS ----------------
+// ---------------- BUTTON HANDLERS ----------------
 addPlayerBtn?.addEventListener('click', () => {
   const name = newPlayerInput.value.trim();
   if (!name) return;
@@ -362,38 +397,23 @@ appendHistoryBtn?.addEventListener('click', () => {
   syncToFirestore();
 });
 
-undoBtn?.addEventListener('click', () => {
-  if (!undoSnapshot) return alert('Nothing to undo');
-  restoreUndoSnapshot();
-});
+undoBtn?.addEventListener('click', restoreUndoSnapshot);
 
 // ---------------- TAB SWITCHING ----------------
 tabGameBtn?.addEventListener('click', () => {
   gameTabSection.style.display = 'block';
   historyTabSection.style.display = 'none';
-
-  if (historyEditing || masterEditing) {
-    renderAll();
-  }
+  renderAll();
 });
 
 tabHistoryBtn?.addEventListener('click', () => {
   gameTabSection.style.display = 'none';
   historyTabSection.style.display = 'block';
-
-  // 🔑 FORCE re-render so edit mode applies visibly
   renderAll();
-
   requestAnimationFrame(() => {
     updateMasterChart();
     masterChart?.resetZoom?.();
   });
-});
-
-
-  if (historyEditing || masterEditing) {
-    renderAll();
-  }
 });
 
 // ---------------- EDIT / SAVE HISTORY ----------------
@@ -435,7 +455,7 @@ saveMasterBtn?.addEventListener('click', () => {
 // ---------------- RESET ZOOM ----------------
 resetZoomBtn?.addEventListener('click', () => masterChart?.resetZoom?.());
 
-// ---------------- SNAPSHOT LISTENER ----------------
+// ---------------- FIRESTORE SNAPSHOT ----------------
 gameDoc.onSnapshot(doc => {
   if (isRestoringUndo) return;
 
@@ -446,22 +466,9 @@ gameDoc.onSnapshot(doc => {
   if (!d) return;
 
   players.splice(0, players.length, ...(d.players ?? []));
-
-  rounds.splice(
-    0,
-    rounds.length,
-    ...(d.rounds ?? []).map(r => players.map(p => r[p] ?? 0))
-  );
-
+  rounds.splice(0, rounds.length, ...(d.rounds ?? []).map(r => players.map(p => r[p] ?? 0)));
   historyPlayers.splice(0, historyPlayers.length, ...(d.historyPlayers ?? []));
-
-  historyLog.splice(
-    0,
-    historyLog.length,
-    ...(d.history ?? []).map(r => historyPlayers.map(p => r[p] ?? 0))
-  );
+  historyLog.splice(0, historyLog.length, ...(d.history ?? []).map(r => historyPlayers.map(p => r[p] ?? 0)));
 
   renderAll();
 });
-
-
