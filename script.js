@@ -87,6 +87,11 @@ function restoreUndoSnapshot() {
 
   isRestoringUndo = true;
 
+  // Exit edit modes safely
+  historyEditing = false;
+  masterEditing = false;
+  undoBtn.disabled = false;
+
   players.splice(0, players.length, ...undoSnapshot.players);
   rounds.splice(0, rounds.length, ...undoSnapshot.rounds.map(r => [...r]));
   currentScores = [...undoSnapshot.currentScores];
@@ -100,8 +105,6 @@ function restoreUndoSnapshot() {
   undoSnapshot = null;
   setTimeout(() => { isRestoringUndo = false; }, 0);
 }
-
-if (isRestoringUndo || historyEditing || masterEditing) return;
 
 
 // ---------------- RENDER ----------------
@@ -272,13 +275,22 @@ function updateMasterChart() {
 }
 
 function renderAll() {
+  const wasHistoryEditing = historyEditing;
+  const wasMasterEditing = masterEditing;
+
   renderScoreInputs();
   if (roundNumSpan) roundNumSpan.textContent = rounds.length + 1;
+
   updateHistory();
   updateMasterHistory();
   updateChart();
   updateMasterChart();
+
+  // 🔒 Preserve edit state across renders
+  historyEditing = wasHistoryEditing;
+  masterEditing = wasMasterEditing;
 }
+
 
 // ---------------- HELPERS ----------------
 function appendCurrentRoundsToHistory() {
@@ -389,7 +401,7 @@ editHistoryBtn?.addEventListener('click', () => {
   undoBtn.disabled = true;
   editHistoryBtn.style.display = 'none';
   saveHistoryBtn.style.display = 'inline-block';
-  renderAll(); // 🔑 REQUIRED
+  renderAll();
 });
 
 saveHistoryBtn?.addEventListener('click', () => {
@@ -401,17 +413,18 @@ saveHistoryBtn?.addEventListener('click', () => {
   syncToFirestore();
 });
 
-
-
 // ---------------- EDIT / SAVE MASTER HISTORY ----------------
 editMasterBtn?.addEventListener('click', () => {
   masterEditing = true;
+  undoBtn.disabled = true;
   editMasterBtn.style.display = 'none';
   saveMasterBtn.style.display = 'inline-block';
+  renderAll();
 });
 
 saveMasterBtn?.addEventListener('click', () => {
   masterEditing = false;
+  undoBtn.disabled = false;
   editMasterBtn.style.display = 'inline-block';
   saveMasterBtn.style.display = 'none';
   renderAll();
@@ -423,21 +436,31 @@ resetZoomBtn?.addEventListener('click', () => masterChart?.resetZoom?.());
 
 // ---------------- SNAPSHOT LISTENER ----------------
 gameDoc.onSnapshot(doc => {
-  if (isRestoringUndo || historyEditing || masterEditing) return;
+  if (isRestoringUndo) return;
+
+  // Block Firestore overwrites during manual edits
+  if ((historyEditing || masterEditing) && undoSnapshot) return;
 
   const d = doc.data();
   if (!d) return;
 
   players.splice(0, players.length, ...(d.players ?? []));
-  rounds.splice(0, rounds.length,
+
+  rounds.splice(
+    0,
+    rounds.length,
     ...(d.rounds ?? []).map(r => players.map(p => r[p] ?? 0))
   );
 
   historyPlayers.splice(0, historyPlayers.length, ...(d.historyPlayers ?? []));
-  historyLog.splice(0, historyLog.length,
+
+  historyLog.splice(
+    0,
+    historyLog.length,
     ...(d.history ?? []).map(r => historyPlayers.map(p => r[p] ?? 0))
   );
 
   renderAll();
 });
+
 
