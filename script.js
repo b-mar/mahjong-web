@@ -261,7 +261,7 @@ function updateMasterChart() {
     data: { datasets },
     options: {
       scales: { x: { type: 'linear', min: 0, max: historyLog.length || 1, title: { display: true, text: 'Rounds' } }, y: { title: { display: true, text: 'Cumulative Points' } } },
-      plugins: {}, // zoom removed
+      plugins: {}, 
       animation: { duration: 0 }
     },
   });
