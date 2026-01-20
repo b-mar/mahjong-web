@@ -101,6 +101,9 @@ function restoreUndoSnapshot() {
   setTimeout(() => { isRestoringUndo = false; }, 0);
 }
 
+if (isRestoringUndo || historyEditing || masterEditing) return;
+
+
 // ---------------- RENDER ----------------
 function renderScoreInputs() {
   if (!scoreInputs) return;
