@@ -459,16 +459,38 @@ resetZoomBtn?.addEventListener('click', () => masterChart?.resetZoom?.());
 gameDoc.onSnapshot(doc => {
   if (isRestoringUndo) return;
 
-  // Block Firestore overwrites during manual edits
-  if ((historyEditing || masterEditing) && undoSnapshot) return;
-
   const d = doc.data();
   if (!d) return;
 
+  // Block Firestore overwrites during manual edits
+  if ((historyEditing || masterEditing) && undoSnapshot) return;
+
+  // Load players
   players.splice(0, players.length, ...(d.players ?? []));
-  rounds.splice(0, rounds.length, ...(d.rounds ?? []).map(r => players.map(p => r[p] ?? 0)));
+
+  // Convert Firestore rounds (objects) to arrays
+  rounds.splice(
+    0,
+    rounds.length,
+    ...(d.rounds ?? []).map(obj =>
+      players.map(p => (obj && p in obj ? Number(obj[p]) : 0))
+    )
+  );
+
+  // Current scores defaults to zero
+  currentScores = players.map(() => 0);
+
+  // Load history players
   historyPlayers.splice(0, historyPlayers.length, ...(d.historyPlayers ?? []));
-  historyLog.splice(0, historyLog.length, ...(d.history ?? []).map(r => historyPlayers.map(p => r[p] ?? 0)));
+
+  // Convert history (objects) to arrays
+  historyLog.splice(
+    0,
+    historyLog.length,
+    ...(d.history ?? []).map(obj =>
+      historyPlayers.map(p => (obj && p in obj ? Number(obj[p]) : 0))
+    )
+  );
 
   renderAll();
 });
