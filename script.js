@@ -275,20 +275,16 @@ function updateMasterChart() {
 }
 
 function renderAll() {
-  const wasHistoryEditing = historyEditing;
-  const wasMasterEditing = masterEditing;
-
   renderScoreInputs();
-  if (roundNumSpan) roundNumSpan.textContent = rounds.length + 1;
 
-  updateHistory();
-  updateMasterHistory();
+  if (roundNumSpan) {
+    roundNumSpan.textContent = rounds.length + 1;
+  }
+
+  updateHistory();        // uses historyEditing
+  updateMasterHistory();  // uses masterEditing
   updateChart();
   updateMasterChart();
-
-  // 🔒 Preserve edit state across renders
-  historyEditing = wasHistoryEditing;
-  masterEditing = wasMasterEditing;
 }
 
 
