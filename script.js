@@ -129,6 +129,7 @@ function renderScoreInputs() {
 function updateHistory() {
   if (!historyTable) return;
   historyTable.innerHTML = '';
+
   const header = historyTable.insertRow();
   header.insertCell().textContent = 'Round';
   players.forEach(p => header.insertCell().textContent = p);
@@ -136,9 +137,29 @@ function updateHistory() {
   rounds.forEach((scores, r) => {
     const row = historyTable.insertRow();
     row.insertCell().textContent = r + 1;
-    players.forEach((_, i) => row.insertCell().textContent = scores[i] ?? 0);
+
+    players.forEach((_, i) => {
+      const cell = row.insertCell();
+
+      if (historyEditing) {
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.value = scores[i] ?? 0;
+        input.style.width = '4rem';
+
+        input.addEventListener('change', () => {
+          takeUndoSnapshot();
+          rounds[r][i] = Number(input.value);
+        });
+
+        cell.appendChild(input);
+      } else {
+        cell.textContent = scores[i] ?? 0;
+      }
+    });
   });
 }
+
 
 function updateChart() {
   if (!ctx) return;
@@ -365,6 +386,7 @@ saveHistoryBtn?.addEventListener('click', () => {
   syncToFirestore();
 });
 
+
 // ---------------- EDIT / SAVE MASTER HISTORY ----------------
 editMasterBtn?.addEventListener('click', () => {
   masterEditing = true;
@@ -385,7 +407,8 @@ resetZoomBtn?.addEventListener('click', () => masterChart?.resetZoom?.());
 
 // ---------------- SNAPSHOT LISTENER ----------------
 gameDoc.onSnapshot(doc => {
-  if (isRestoringUndo) return;
+  if (isRestoringUndo || historyEditing || masterEditing) return;
+
   const d = doc.data();
   if (!d) return;
 
@@ -401,3 +424,4 @@ gameDoc.onSnapshot(doc => {
 
   renderAll();
 });
+
