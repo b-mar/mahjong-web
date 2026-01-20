@@ -360,31 +360,44 @@ undoBtn?.addEventListener('click', () => {
 tabGameBtn?.addEventListener('click', () => {
   gameTabSection.style.display = 'block';
   historyTabSection.style.display = 'none';
+
+  if (historyEditing || masterEditing) {
+    renderAll();
+  }
 });
 
 tabHistoryBtn?.addEventListener('click', () => {
   gameTabSection.style.display = 'none';
   historyTabSection.style.display = 'block';
+
   requestAnimationFrame(() => {
-    updateMasterChart(); // auto-scales x-axis dynamically
+    updateMasterChart();
     masterChart?.resetZoom?.();
   });
+
+  if (historyEditing || masterEditing) {
+    renderAll();
+  }
 });
 
 // ---------------- EDIT / SAVE HISTORY ----------------
 editHistoryBtn?.addEventListener('click', () => {
   historyEditing = true;
+  undoBtn.disabled = true;
   editHistoryBtn.style.display = 'none';
   saveHistoryBtn.style.display = 'inline-block';
+  renderAll(); // 🔑 REQUIRED
 });
 
 saveHistoryBtn?.addEventListener('click', () => {
   historyEditing = false;
+  undoBtn.disabled = false;
   editHistoryBtn.style.display = 'inline-block';
   saveHistoryBtn.style.display = 'none';
   renderAll();
   syncToFirestore();
 });
+
 
 
 // ---------------- EDIT / SAVE MASTER HISTORY ----------------
