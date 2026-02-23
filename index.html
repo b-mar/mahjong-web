@@ -228,7 +228,8 @@
 
       <div class="section" id="addPlayerSection">
         <h2>Add Player</h2>
-        <input type="text" id="newPlayer" placeholder="Name" />
+        <input type="text" id="newPlayer" placeholder="Name" list="playerSuggestions" autocomplete="off" />
+        <datalist id="playerSuggestions"></datalist>
         <button id="addPlayerBtn">Add</button>
       </div>
 
