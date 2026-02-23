@@ -346,6 +346,7 @@ submitBtn?.addEventListener('click', () => {
 });
 
 newGameBtn?.addEventListener('click', () => {
+  if (!confirm('Start a new game? This will clear all current players and rounds.\n\nUse "Add to History" first if you want to save this game.')) return;
   takeUndoSnapshot();
   players.length = 0;
   rounds.length = 0;
@@ -356,6 +357,7 @@ newGameBtn?.addEventListener('click', () => {
 
 appendHistoryBtn?.addEventListener('click', () => {
   if (!rounds.length) return alert('No rounds to add');
+  if (!confirm('Add this game to all-time history? This will move all current rounds to history and cannot be undone.')) return;
   takeUndoSnapshot();
   appendCurrentRoundsToHistory();
   rounds.length = 0;
