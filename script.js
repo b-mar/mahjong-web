@@ -308,7 +308,7 @@ function computeStats(playerList, roundList) {
       const negatives = r.filter(s => (s ?? 0) < 0).length;
       if (score > 0) {
         wins++;
-        if (positives === 1 && negatives === playerList.length - 1) selfDraws++;
+        if (positives === 1 && negatives === 3) selfDraws++;
       } else {
         losses++;
       }
