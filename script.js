@@ -47,6 +47,8 @@ const editHistoryBtn = document.getElementById('editHistoryBtn');
 const saveHistoryBtn = document.getElementById('saveHistoryBtn');
 const editMasterBtn = document.getElementById('editMasterBtn');
 const saveMasterBtn = document.getElementById('saveMasterBtn');
+const gameStatsTable = document.getElementById('gameStatsTable');
+const masterStatsTable = document.getElementById('masterStatsTable');
 
 // ---------------- CHARTS ----------------
 const ctx = document.getElementById('chartCanvas')?.getContext('2d');
@@ -291,6 +293,54 @@ function renderAll() {
   updateMasterHistory();
   updateChart();
   updateMasterChart();
+  renderStatsTable(gameStatsTable, players, rounds);
+  renderStatsTable(masterStatsTable, historyPlayers, historyLog);
+}
+
+// ---------------- STATISTICS ----------------
+function computeStats(playerList, roundList) {
+  return playerList.map((_, i) => {
+    let wins = 0, selfDraws = 0, losses = 0;
+    roundList.forEach(r => {
+      const score = r[i] ?? 0;
+      if (score === 0) return;
+      const positives = r.filter(s => (s ?? 0) > 0).length;
+      const negatives = r.filter(s => (s ?? 0) < 0).length;
+      if (score > 0) {
+        wins++;
+        if (positives === 1 && negatives === playerList.length - 1) selfDraws++;
+      } else {
+        losses++;
+      }
+    });
+    return { wins, selfDraws, losses };
+  });
+}
+
+function renderStatsTable(tableEl, playerList, roundList) {
+  if (!tableEl) return;
+  tableEl.innerHTML = '';
+  if (!playerList.length) return;
+
+  const header = tableEl.insertRow();
+  ['Player', 'Wins', 'Self-Draws', 'Losses'].forEach((label, i) => {
+    const th = document.createElement('th');
+    th.textContent = label;
+    if (i === 0) th.style.textAlign = 'left';
+    header.appendChild(th);
+  });
+
+  computeStats(playerList, roundList).forEach((s, i) => {
+    if (s.wins === 0 && s.selfDraws === 0 && s.losses === 0) return;
+    const row = tableEl.insertRow();
+    const nameCell = row.insertCell();
+    nameCell.textContent = playerList[i];
+    nameCell.style.textAlign = 'left';
+    row.insertCell().textContent = s.wins;
+    const pct = s.wins > 0 ? Math.round((s.selfDraws / s.wins) * 100) : 0;
+    row.insertCell().textContent = `${s.selfDraws} (${pct}%)`;
+    row.insertCell().textContent = s.losses;
+  });
 }
 
 // ---------------- HELPERS ----------------
