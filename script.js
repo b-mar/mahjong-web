@@ -313,11 +313,7 @@ function computeStats(playerList, roundList) {
         losses++;
       }
     });
-    const played = wins + losses;
-    const winPct  = played > 0 ? Math.round(wins  / played * 100) : 0;
-    const lossPct = played > 0 ? Math.round(losses / played * 100) : 0;
-    const sdPct   = wins  > 0 ? Math.round(selfDraws / wins * 100) : 0;
-    return { wins, winPct, selfDraws, sdPct, losses, lossPct };
+    return { wins, selfDraws, losses };
   });
 }
 
@@ -340,9 +336,10 @@ function renderStatsTable(tableEl, playerList, roundList) {
     const nameCell = row.insertCell();
     nameCell.textContent = playerList[i];
     nameCell.style.textAlign = 'left';
-    row.insertCell().textContent = `${s.wins} (${s.winPct}%)`;
-    row.insertCell().textContent = `${s.selfDraws} (${s.sdPct}%)`;
-    row.insertCell().textContent = `${s.losses} (${s.lossPct}%)`;
+    row.insertCell().textContent = s.wins;
+    const pct = s.wins > 0 ? Math.round((s.selfDraws / s.wins) * 100) : 0;
+    row.insertCell().textContent = `${s.selfDraws} (${pct}%)`;
+    row.insertCell().textContent = s.losses;
   });
 }
 
