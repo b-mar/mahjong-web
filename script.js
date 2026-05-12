@@ -291,10 +291,10 @@ function renderAll() {
   if (roundNumSpan) roundNumSpan.textContent = rounds.length + 1;
   updateHistory();
   updateMasterHistory();
-  updateChart();
-  updateMasterChart();
   renderStatsTable(gameStatsTable, players, rounds);
   renderStatsTable(masterStatsTable, historyPlayers, historyLog);
+  try { updateChart(); } catch (e) { console.error('chart error:', e); }
+  try { updateMasterChart(); } catch (e) { console.error('masterChart error:', e); }
 }
 
 // ---------------- STATISTICS ----------------
