@@ -60,10 +60,16 @@ let masterChart;
 
 // ---------------- COLORS ----------------
 const PLAYER_COLORS = [
-  '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
-  '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
-  '#bcbd22', '#17becf', '#aec7e8', '#ffbb78',
-  '#98df8a', '#ff9896', '#c5b0d5',
+  '#728383', // chart-1  Sage
+  '#B86F58', // chart-2  Terracotta
+  '#C9974A', // chart-3  Honey
+  '#5F7E62', // chart-4  Forest
+  '#6B8AA1', // chart-5  Slate
+  '#8A6D90', // chart-6  Plum
+  '#B57878', // chart-7  Rose
+  '#8C8F5C', // chart-8  Olive
+  '#5C6680', // chart-9  Indigo
+  '#9C7B92', // chart-10 Mauve
 ];
 
 function getPlayerColor(index) {
@@ -187,8 +193,6 @@ function updateHistory() {
   totalScores.forEach(sum => {
     const cell = totalRow.insertCell();
     cell.textContent = sum;
-    cell.style.fontWeight = '600';
-    cell.style.background = '#f3f4f6';
   });
 }
 
@@ -225,8 +229,6 @@ function updateMasterHistory() {
     const total = historyLog.reduce((sum, row) => sum + (row[c] ?? 0), 0);
     const cell = summaryRow.insertCell();
     cell.textContent = total;
-    cell.style.fontWeight = '600';
-    cell.style.background = '#f3f4f6';
   });
 }
 
@@ -240,7 +242,7 @@ function updateChart() {
         return { x: idx + 1, y: cum };
       })
     );
-    return { label: name, data, borderColor: getPlayerColor(i), backgroundColor: getPlayerColor(i), tension: 0.25, pointRadius: 3 };
+    return { label: name, data, borderColor: getPlayerColor(i), backgroundColor: getPlayerColor(i), tension: 0.5, pointRadius: 3, borderWidth: 2.5 };
   });
 
   if (chart) chart.destroy();
@@ -257,7 +259,7 @@ function updateMasterChart() {
         return { x: i + 1, y: cum };
       })
     );
-    return { label: name, data, borderColor: getPlayerColor(c), backgroundColor: getPlayerColor(c), tension: 0.25, pointRadius: 2 };
+    return { label: name, data, borderColor: getPlayerColor(c), backgroundColor: getPlayerColor(c), tension: 0.5, pointRadius: 2, borderWidth: 2 };
   });
 
   if (masterChart) masterChart.destroy();
