@@ -385,6 +385,44 @@
         gap: 4px;
       }
     }
+
+    /* =================================================================
+       Self-draw celebration burst
+       ================================================================= */
+    @keyframes sd-fly {
+      0%   { transform: translate(-50%, -50%) rotate(0deg) scale(1); opacity: 1; }
+      65%  { opacity: 1; }
+      100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(var(--rot)) scale(0.5); opacity: 0; }
+    }
+    @keyframes sd-btn-flash {
+      0%   { transform: scale(1)    translateY(0); }
+      35%  { transform: scale(1.2)  translateY(-3px); }
+      65%  { transform: scale(0.95) translateY(0); }
+      100% { transform: scale(1)    translateY(0); }
+    }
+    .sd-particle {
+      position: fixed;
+      pointer-events: none;
+      z-index: 9999;
+      font-size: var(--size);
+      line-height: 1;
+      user-select: none;
+      white-space: nowrap;
+      animation: sd-fly var(--dur) cubic-bezier(0.12, 0.82, 0.3, 1) var(--delay) both;
+      will-change: transform, opacity;
+    }
+    .sd-particle.is-label {
+      font-family: var(--font-display);
+      font-weight: 700;
+      color: var(--color-walnut);
+      background: var(--color-golden);
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      box-shadow: var(--shadow-accent);
+    }
+    button.sd-btn-flash {
+      animation: sd-btn-flash 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards !important;
+    }
   </style>
 </head>
 <body>
@@ -469,6 +507,6 @@
   </main>
 
   <!-- Only include main JS file -->
-  <script src="script.js?v=8"></script>
+  <script src="script.js?v=9"></script>
 </body>
 </html>

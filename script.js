@@ -274,6 +274,48 @@ function updateMasterChart() {
   });
 }
 
+// ---------------- SELF-DRAW ANIMATION ----------------
+function playSelfDrawAnimation(btn) {
+  const rect = btn.getBoundingClientRect();
+  const ox = rect.left + rect.width / 2;
+  const oy = rect.top + rect.height / 2;
+
+  const TILES = [
+    '🀇','🀈','🀉','🀊','🀋','🀌','🀍','🀎','🀏', // characters
+    '🀐','🀑','🀒','🀓','🀔','🀕','🀖','🀗','🀘', // bamboo
+    '🀙','🀚','🀛','🀜','🀝','🀞','🀟','🀠','🀡', // circles
+    '🀀','🀁','🀂','🀃','🀄','🀅','🀆',           // winds + dragons
+  ];
+  const LABELS = ['自摸!', 'Self Draw!'];
+
+  btn.classList.add('sd-btn-flash');
+  btn.addEventListener('animationend', () => btn.classList.remove('sd-btn-flash'), { once: true });
+
+  for (let i = 0; i < 55; i++) {
+    const isLabel = i % 5 === 0;
+    const el = document.createElement('span');
+    el.className = 'sd-particle' + (isLabel ? ' is-label' : '');
+    el.textContent = isLabel
+      ? LABELS[Math.floor(Math.random() * LABELS.length)]
+      : TILES[Math.floor(Math.random() * TILES.length)];
+
+    const angle = Math.random() * 2 * Math.PI;
+    const dist  = 100 + Math.random() * 380;
+    const dx    = (Math.cos(angle) * dist).toFixed(1);
+    const dy    = (Math.sin(angle) * dist).toFixed(1);
+    const rot   = ((Math.random() - 0.5) * 900).toFixed(0);
+    const dur   = ((0.85 + Math.random() * 0.6) / 0.75).toFixed(2);
+    const delay = (Math.random() * 0.1).toFixed(3);
+    const size  = isLabel
+      ? (Math.random() < 0.4 ? 26 + Math.random() * 14 : 13 + Math.random() * 9).toFixed(0) + 'px'
+      : (24 + Math.random() * 16).toFixed(0) + 'px';
+
+    el.style.cssText = `left:${ox}px;top:${oy}px;--dx:${dx}px;--dy:${dy}px;--rot:${rot}deg;--dur:${dur}s;--delay:${delay}s;--size:${size};`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), (parseFloat(dur) + parseFloat(delay) + 0.1) * 1000);
+  }
+}
+
 function updatePlayerDatalist() {
   const datalist = document.getElementById('playerSuggestions');
   if (!datalist) return;
@@ -392,9 +434,16 @@ submitBtn?.addEventListener('click', () => {
   const sum = currentScores.reduce((a, b) => a + b, 0);
   if (sum !== 0) return alert('Scores must sum to zero');
   takeUndoSnapshot();
+
+  const positives = currentScores.filter(s => s > 0).length;
+  const negatives = currentScores.filter(s => s < 0).length;
+  const selfDraw  = positives === 1 && negatives === 3;
+
   rounds.push([...currentScores]);
   renderAll();
   syncToFirestore();
+
+  if (selfDraw) playSelfDrawAnimation(submitBtn);
 });
 
 newGameBtn?.addEventListener('click', () => {
