@@ -269,6 +269,69 @@ function updatePlayerDatalist() {
     });
 }
 
+// ---------------- HISTORY STAT CARDS ----------------
+function computeHistoryStats() {
+  if (!historyPlayers.length || !historyLog.length) return null;
+
+  // Most wins: player with the highest count of rounds where score > 0
+  let mostWinsCount = 0, mostWinsPlayer = '';
+  historyPlayers.forEach((name, i) => {
+    const wins = historyLog.filter(r => (r[i] ?? 0) > 0).length;
+    if (wins > mostWinsCount) { mostWinsCount = wins; mostWinsPlayer = name; }
+  });
+
+  // Biggest hand: highest single-round winning value.
+  // Self-draw (1 winner, 3 losers) → divide winner's score by 3 and round,
+  // because the winner collected the same base amount from each of the 3 players.
+  let biggestHandValue = 0, biggestHandPlayer = '';
+  historyLog.forEach(r => {
+    const winnerEntries = r.map((s, i) => ({ s: s ?? 0, i })).filter(x => x.s > 0);
+    if (winnerEntries.length !== 1) return;
+    const { s: winnerScore, i: winnerIdx } = winnerEntries[0];
+    const negatives = r.filter(s => (s ?? 0) < 0).length;
+    const handValue = negatives === 3 ? Math.round(winnerScore / 3) : winnerScore;
+    if (handValue > biggestHandValue) {
+      biggestHandValue = handValue;
+      biggestHandPlayer = historyPlayers[winnerIdx];
+    }
+  });
+
+  // Most consecutive wins: longest streak of the same player winning back-to-back.
+  // Requires exactly 1 positive score per round to extend a streak.
+  let maxStreak = 0, maxStreakPlayer = '';
+  let streak = 0, streakPlayer = '';
+  historyLog.forEach(r => {
+    const winners = r.map((s, i) => ({ s: s ?? 0, i })).filter(x => x.s > 0);
+    if (winners.length !== 1) { streak = 0; streakPlayer = ''; return; }
+    const name = historyPlayers[winners[0].i];
+    streak = name === streakPlayer ? streak + 1 : 1;
+    streakPlayer = name;
+    if (streak > maxStreak) { maxStreak = streak; maxStreakPlayer = name; }
+  });
+
+  return {
+    mostWins:   { value: mostWinsCount,    player: mostWinsPlayer },
+    biggestHand:{ value: biggestHandValue, player: biggestHandPlayer },
+    consecWins: { value: maxStreak,        player: maxStreakPlayer },
+  };
+}
+
+function updateHistoryStatCards() {
+  const stats = computeHistoryStats();
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  if (!stats) {
+    ['statMostWinsValue','statMostWinsName','statBiggestHandValue',
+     'statBiggestHandName','statConsecWinsValue','statConsecWinsName'].forEach(id => set(id, '—'));
+    return;
+  }
+  set('statMostWinsValue',    stats.mostWins.value    || '—');
+  set('statMostWinsName',     stats.mostWins.player   || '—');
+  set('statBiggestHandValue', stats.biggestHand.value || '—');
+  set('statBiggestHandName',  stats.biggestHand.player|| '—');
+  set('statConsecWinsValue',  stats.consecWins.value  || '—');
+  set('statConsecWinsName',   stats.consecWins.player || '—');
+}
+
 function renderAll() {
   renderScoreInputs();
   updatePlayerDatalist();
@@ -277,6 +340,7 @@ function renderAll() {
   updateMasterHistory();
   renderStatsTable(gameStatsTable, players, rounds);
   renderStatsTable(masterStatsTable, historyPlayers, historyLog);
+  updateHistoryStatCards();
   try { updateChart(); } catch (e) { console.error('chart error:', e); }
   try { updateMasterChart(); } catch (e) { console.error('masterChart error:', e); }
 }
