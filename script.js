@@ -246,7 +246,15 @@ function updateChart() {
   });
 
   if (chart) chart.destroy();
-  chart = new Chart(ctx, { type: 'line', data: { datasets }, options: { scales: { x: { type: 'linear', min: 0, max: rounds.length || 1 } } } });
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      interaction: { mode: 'index', intersect: false },
+      plugins: { tooltip: { itemSort: (a, b) => b.parsed.y - a.parsed.y } },
+      scales: { x: { type: 'linear', min: 0, max: rounds.length || 1 } },
+    },
+  });
 }
 
 function updateMasterChart() {
@@ -267,9 +275,10 @@ function updateMasterChart() {
     type: 'line',
     data: { datasets },
     options: {
+      interaction: { mode: 'index', intersect: false },
+      plugins: { tooltip: { itemSort: (a, b) => b.parsed.y - a.parsed.y } },
       scales: { x: { type: 'linear', min: 0, max: historyLog.length || 1, title: { display: true, text: 'Rounds' } }, y: { title: { display: true, text: 'Cumulative Points' } } },
-      plugins: {}, 
-      animation: { duration: 0 }
+      animation: { duration: 0 },
     },
   });
 }
