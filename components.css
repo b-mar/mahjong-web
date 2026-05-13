@@ -7,7 +7,7 @@
 .btn {
   font-family: var(--font-body);
   font-weight: 600;
-  font-size: 13px;
+  font-size: 14px;
   padding: 9px 18px;
   border-radius: var(--radius-md);
   border: 1px solid transparent;
@@ -19,7 +19,7 @@
     transform var(--transition-quick),
     border-color var(--transition-quick);
 }
-.btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn-sm { padding: 6px 12px; font-size: 13px; }
 .btn:focus-visible { outline: none; box-shadow: var(--shadow-focus-tonal); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
 
@@ -75,7 +75,7 @@
 /* ---------- inputs ---------- */
 .input {
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 16px;
   padding: 9px 12px;
   border-radius: var(--radius-md);
   border: 1px solid rgba(0, 0, 0, 0.1);
@@ -170,7 +170,7 @@
   width: 88px;
   text-align: right;
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 15px;
   padding: 6px 10px;
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: var(--radius-md);

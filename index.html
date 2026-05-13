@@ -26,7 +26,6 @@
 
     body {
       font-family: var(--font-body);
-      font-size: 14px;
       margin: 0;
       padding: 0;
       background: var(--color-background);
@@ -76,7 +75,7 @@
     h2 {
       font-family: var(--font-display);
       font-weight: 700;
-      font-size: 17px;
+      font-size: 20px;
       margin: 0 0 var(--space-sm);
       color: var(--color-text-primary);
     }
@@ -84,7 +83,7 @@
     h3 {
       font-family: var(--font-display);
       font-weight: 700;
-      font-size: 14px;
+      font-size: 16px;
       margin: var(--space-xs) 0;
       color: var(--color-text-primary);
     }
@@ -138,6 +137,23 @@
     }
     .btn.sd-btn-flash {
       animation: sd-btn-flash 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards !important;
+    }
+
+    /* =================================================================
+       History table — scroll + expand/collapse
+       ================================================================= */
+    .table-scroll-wrap {
+      overflow-x: auto;
+      margin-top: var(--space-md);
+    }
+    .table-scroll-wrap.is-expanded {
+      max-height: 340px;
+      overflow-y: auto;
+    }
+    .table-scroll-wrap.is-expanded .data-table tr:last-child td {
+      position: sticky;
+      bottom: 0;
+      background: #f5f5f5;
     }
 
     /* =================================================================
@@ -282,9 +298,12 @@
         <div id="masterHistoryControls" class="actions-row" style="margin-top: var(--space-md);">
           <button id="editMasterBtn" class="btn btn-secondary btn-sm">Edit</button>
           <button id="saveMasterBtn" class="btn btn-secondary btn-sm" style="display:none;">Save</button>
+          <button id="masterTableToggleBtn" class="btn btn-secondary btn-sm">Show all rounds ↓</button>
         </div>
 
-        <table id="masterHistoryTable" class="data-table" style="margin-top: var(--space-md);"></table>
+        <div class="table-scroll-wrap">
+          <table id="masterHistoryTable" class="data-table"></table>
+        </div>
       </div>
 
       <div class="section">

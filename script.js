@@ -30,6 +30,7 @@ let masterEditing = false;
 
 let undoSnapshot = null;
 let isRestoringUndo = false;
+let masterTableExpanded = false;
 
 // ---------------- DOM ----------------
 const newPlayerInput = document.getElementById('newPlayer');
@@ -214,6 +215,8 @@ function updateMasterHistory() {
     const cell = summaryRow.insertCell();
     cell.textContent = (total > 0 ? '+' : '') + total;
   });
+
+  applyMasterTableState();
 }
 
 // ---------------- CHARTS ----------------
@@ -267,6 +270,34 @@ function updatePlayerDatalist() {
       opt.value = p;
       datalist.appendChild(opt);
     });
+}
+
+// ---------------- MASTER TABLE COLLAPSE ----------------
+function applyMasterTableState() {
+  const table = masterHistoryTable;
+  if (!table) return;
+  const wrap = table.closest('.table-scroll-wrap');
+  const rows = Array.from(table.rows);
+  const toggleBtn = document.getElementById('masterTableToggleBtn');
+  const dataRowCount = Math.max(0, rows.length - 2);
+
+  if (rows.length <= 2) {
+    if (toggleBtn) toggleBtn.style.display = 'none';
+    return;
+  }
+  if (toggleBtn) toggleBtn.style.display = '';
+
+  if (masterTableExpanded) {
+    rows.forEach(r => r.style.display = '');
+    wrap?.classList.add('is-expanded');
+    if (toggleBtn) toggleBtn.textContent = 'Collapse ↑';
+  } else {
+    rows.forEach((r, i) => {
+      r.style.display = (i === 0 || i === rows.length - 1) ? '' : 'none';
+    });
+    wrap?.classList.remove('is-expanded');
+    if (toggleBtn) toggleBtn.textContent = `Show all ${dataRowCount} rounds ↓`;
+  }
 }
 
 // ---------------- HISTORY STAT CARDS ----------------
@@ -533,6 +564,11 @@ saveHistoryBtn?.addEventListener('click', () => { historyEditing = false; undoBt
 
 editMasterBtn?.addEventListener('click', () => { masterEditing = true; undoBtn.disabled = true; editMasterBtn.style.display = 'none'; saveMasterBtn.style.display = 'inline-block'; renderAll(); });
 saveMasterBtn?.addEventListener('click', () => { masterEditing = false; undoBtn.disabled = false; editMasterBtn.style.display = 'inline-block'; saveMasterBtn.style.display = 'none'; renderAll(); syncToFirestore(); });
+
+document.getElementById('masterTableToggleBtn')?.addEventListener('click', () => {
+  masterTableExpanded = !masterTableExpanded;
+  applyMasterTableState();
+});
 
 // ---------------- FIRESTORE SNAPSHOT ----------------
 gameDoc.onSnapshot(doc => {

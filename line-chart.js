@@ -269,6 +269,70 @@
       showHover(idx);
     });
     zone.addEventListener('mouseleave', hideHover);
+
+    setupTouchZoom(host);
+  }
+
+  // ---------------- TOUCH ZOOM ----------------
+  // Attaches once per host; subsequent renderLineChart calls re-use the listeners.
+  // Pinch zooms the x-axis; single-finger pans when zoomed in.
+  function setupTouchZoom(host) {
+    if (host._touchZoomActive) return;
+    host._touchZoomActive = true;
+
+    let scale = 1, offsetX = 0;
+    let pinchRef = null, panRef = null;
+
+    function getSvg() { return host.querySelector('svg'); }
+
+    function apply() {
+      const svg = getSvg();
+      if (!svg) return;
+      const maxNeg = -(scale - 1) * host.clientWidth;
+      const tx = Math.max(maxNeg, Math.min(0, offsetX));
+      svg.style.transformOrigin = 'left top';
+      svg.style.transform = scale === 1 ? '' : `translateX(${tx}px) scaleX(${scale})`;
+    }
+
+    function pinchDist(t) {
+      return Math.hypot(t[1].clientX - t[0].clientX, t[1].clientY - t[0].clientY);
+    }
+
+    host.addEventListener('touchstart', e => {
+      const t = e.touches;
+      if (t.length === 2) {
+        const rect = host.getBoundingClientRect();
+        pinchRef = { dist: pinchDist(t), scale, offsetX,
+                     midX: (t[0].clientX + t[1].clientX) / 2 - rect.left };
+        panRef = null;
+      } else if (t.length === 1) {
+        panRef = { x: t[0].clientX, offsetX };
+        pinchRef = null;
+      }
+    }, { passive: true });
+
+    host.addEventListener('touchmove', e => {
+      const t = e.touches;
+      if (t.length === 2 && pinchRef) {
+        e.preventDefault();
+        const newScale = Math.max(1, Math.min(10, pinchRef.scale * (pinchDist(t) / pinchRef.dist)));
+        offsetX = pinchRef.midX - (pinchRef.midX - pinchRef.offsetX) * (newScale / pinchRef.scale);
+        scale = newScale;
+        apply();
+      } else if (t.length === 1 && panRef && scale > 1.05) {
+        e.preventDefault();
+        offsetX = panRef.offsetX + (t[0].clientX - panRef.x);
+        apply();
+      }
+    }, { passive: false });
+
+    host.addEventListener('touchend', e => {
+      if (e.touches.length < 2) pinchRef = null;
+      if (e.touches.length === 0) {
+        panRef = null;
+        if (scale < 1.05) { scale = 1; offsetX = 0; apply(); }
+      }
+    }, { passive: true });
   }
 
   window.Rainfall = window.Rainfall || {};
