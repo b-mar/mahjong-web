@@ -1,0 +1,259 @@
+/* =====================================================================
+   Rainfall design system — reusable component classes
+   Requires colors_and_type.css (design tokens).
+   ===================================================================== */
+
+/* ---------- buttons ---------- */
+.btn {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 9px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  line-height: 1;
+  transition:
+    background var(--transition-quick),
+    box-shadow var(--transition-quick),
+    transform var(--transition-quick),
+    border-color var(--transition-quick);
+}
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn:focus-visible { outline: none; box-shadow: var(--shadow-focus-tonal); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+
+.btn-primary {
+  background: var(--color-rainfall);
+  color: #fff;
+  border-color: var(--color-rainfall);
+  box-shadow: var(--shadow-primary);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-rainfall-dark);
+  border-color: var(--color-rainfall-dark);
+  box-shadow: var(--shadow-primary-hover);
+  transform: translateY(-1px);
+}
+.btn-primary:active:not(:disabled) { transform: scale(0.98); box-shadow: var(--shadow-primary); }
+
+.btn-secondary {
+  background: transparent;
+  border-color: var(--color-mist);
+  color: var(--color-rainfall);
+  box-shadow: var(--shadow-secondary);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: rgba(165, 169, 155, 0.14);
+  border-color: var(--color-rainfall);
+  box-shadow: var(--shadow-secondary-hover);
+}
+.btn-secondary:active:not(:disabled) { transform: scale(0.98); }
+
+.btn-accent {
+  background: var(--color-golden);
+  color: var(--color-walnut);
+  border-color: var(--color-golden);
+  box-shadow: var(--shadow-accent);
+}
+.btn-accent:hover:not(:disabled) {
+  background: #e5be58;
+  box-shadow: var(--shadow-accent-hover);
+  transform: translateY(-1px);
+}
+.btn-accent:focus-visible { box-shadow: var(--shadow-focus-accent); }
+
+/* ---------- section card ---------- */
+.section {
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---------- inputs ---------- */
+.input {
+  font-family: var(--font-body);
+  font-size: 14px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: var(--color-white);
+  color: var(--color-text-primary);
+  outline: none;
+  line-height: 1.4;
+  transition: border-color var(--transition-quick), box-shadow var(--transition-quick);
+}
+.input:focus {
+  border-color: var(--color-rainfall);
+  box-shadow: var(--shadow-focus);
+}
+
+/* ---------- chips ---------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  background: var(--color-cream);
+  border: 1px solid var(--color-mist);
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+/* ---------- tabs ---------- */
+.tab {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid #d1d5db;
+  background: var(--color-white);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background var(--transition-quick), border-color var(--transition-quick);
+}
+.tab:hover { background: #f3f4f6; }
+.tab--active { background: var(--color-rainfall); border-color: var(--color-rainfall); color: #fff; }
+.tab--active:hover { background: var(--color-rainfall-dark); }
+.tab:focus-visible { outline: none; box-shadow: var(--shadow-focus-tonal); }
+
+/* ---------- data tables ---------- */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-family: var(--font-body);
+  background: var(--color-white);
+}
+.data-table th,
+.data-table td {
+  padding: 7px 10px;
+  text-align: right;
+  border-bottom: 1px solid #e5e7eb;
+}
+.data-table th:first-child,
+.data-table td:first-child {
+  text-align: left;
+  color: var(--color-text-secondary);
+}
+.data-table thead th {
+  background: #f3f4f6;
+  color: var(--color-text-primary);
+  font-weight: 600;
+  font-size: 13px;
+}
+.data-table thead th:first-child { color: var(--color-text-primary); }
+.data-table tbody tr:nth-child(even) { background: #fafafa; }
+.data-table tr:last-child td {
+  font-weight: 700;
+  background: #f5f5f5;
+  color: var(--color-text-primary);
+}
+
+/* Sign-tinted cells */
+.data-table td.val-pos { color: #2F6B47; font-weight: 500; }
+.data-table td.val-neg { color: #B14A3F; font-weight: 500; }
+
+/* ---------- score rows ---------- */
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 0;
+}
+.score-row__name { font-weight: 500; color: var(--color-text-primary); }
+.score-row__input {
+  width: 88px;
+  text-align: right;
+  font-family: var(--font-body);
+  font-size: 14px;
+  padding: 6px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  color: var(--color-text-primary);
+  outline: none;
+  transition: color var(--transition-quick), background var(--transition-quick),
+              border-color var(--transition-quick), box-shadow var(--transition-quick);
+}
+.score-row__input:focus { border-color: var(--color-rainfall); box-shadow: var(--shadow-focus); }
+.score-row--pos .score-row__input {
+  color: #2F6B47;
+  border-color: rgba(47, 107, 71, 0.35);
+  background: rgba(47, 107, 71, 0.05);
+}
+.score-row--neg .score-row__input {
+  color: #B14A3F;
+  border-color: rgba(177, 74, 63, 0.35);
+  background: rgba(177, 74, 63, 0.05);
+}
+
+/* ---------- line chart host ---------- */
+.chart-host {
+  position: relative;
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 6px 4px 0;
+}
+.chart-host svg { display: block; }
+.chart-empty {
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  padding: var(--space-xl) 0;
+}
+.chart-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 8px 10px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-text-primary);
+  min-width: 132px;
+  opacity: 0;
+  transform: translate(-50%, calc(-100% - 14px));
+  transition: opacity 120ms ease-out;
+  z-index: 5;
+}
+.chart-tooltip--active { opacity: 1; }
+.chart-tooltip__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12px;
+  margin-bottom: 6px;
+  letter-spacing: 0.01em;
+}
+.chart-tooltip__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 3px 0;
+}
+.chart-tooltip__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+.chart-tooltip__swatch {
+  width: 8px; height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.chart-tooltip__val {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.chart-tooltip__val.pos { color: #2F6B47; }
+.chart-tooltip__val.neg { color: #B14A3F; }

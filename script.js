@@ -1,3 +1,9 @@
+// =====================================================================
+// Mahjong Scorer — script.js
+// Charts: Rainfall.renderLineChart (line-chart.js)
+// Styles: components.css
+// =====================================================================
+
 // --- FIREBASE SETUP ---
 const firebaseConfig = {
   apiKey: "AIzaSyBudm3kTAmwHikngh4AlmjekoURZTcXqG4",
@@ -22,7 +28,6 @@ let historyPlayers = [];
 let historyLog = [];
 let masterEditing = false;
 
-// Undo
 let undoSnapshot = null;
 let isRestoringUndo = false;
 
@@ -50,31 +55,8 @@ const saveMasterBtn = document.getElementById('saveMasterBtn');
 const gameStatsTable = document.getElementById('gameStatsTable');
 const masterStatsTable = document.getElementById('masterStatsTable');
 
-// ---------------- CHARTS ----------------
-const ctx = document.getElementById('chartCanvas')?.getContext('2d');
-let chart;
-
-const masterCanvasEl = document.getElementById('masterChartCanvas');
-const masterCtx = masterCanvasEl?.getContext('2d');
-let masterChart;
-
-// ---------------- COLORS ----------------
-const PLAYER_COLORS = [
-  '#728383', // chart-1  Sage
-  '#B86F58', // chart-2  Terracotta
-  '#C9974A', // chart-3  Honey
-  '#5F7E62', // chart-4  Forest
-  '#6B8AA1', // chart-5  Slate
-  '#8A6D90', // chart-6  Plum
-  '#B57878', // chart-7  Rose
-  '#8C8F5C', // chart-8  Olive
-  '#5C6680', // chart-9  Indigo
-  '#9C7B92', // chart-10 Mauve
-];
-
-function getPlayerColor(index) {
-  return PLAYER_COLORS[index % PLAYER_COLORS.length];
-}
+const chartHost = document.getElementById('chartCanvas');
+const masterChartHost = document.getElementById('masterChartCanvas');
 
 // ---------------- UNDO ----------------
 function takeUndoSnapshot() {
@@ -91,8 +73,6 @@ function restoreUndoSnapshot() {
   if (!undoSnapshot) return alert("Nothing to undo");
 
   isRestoringUndo = true;
-
-  // Exit edit modes safely
   historyEditing = false;
   masterEditing = false;
   undoBtn.disabled = false;
@@ -131,7 +111,7 @@ function makeEditableCell(cell, value, onChangeCallback) {
   cell.appendChild(input);
 }
 
-// ---------------- RENDER ----------------
+// ---------------- SCORE ENTRY ----------------
 function renderScoreInputs() {
   if (!scoreInputs) return;
   scoreInputs.innerHTML = '';
@@ -139,21 +119,27 @@ function renderScoreInputs() {
 
   players.forEach((name, i) => {
     const row = document.createElement('div');
-    row.style.display = 'flex';
-    row.style.justifyContent = 'space-between';
-    row.style.marginBottom = '0.5rem';
+    row.className = 'score-row';
     row.innerHTML = `
-      <span>${name}</span>
-      <input type="number" value="0" data-index="${i}" style="width:4rem;" />
+      <span class="score-row__name">${name}</span>
+      <input type="number" value="0" data-index="${i}" class="score-row__input" />
     `;
     scoreInputs.appendChild(row);
-  });
 
-  scoreInputs.querySelectorAll('input')?.forEach(inp => {
-    inp.addEventListener('input', e => {
-      currentScores[e.target.dataset.index] = Number(e.target.value);
+    const inp = row.querySelector('input');
+    inp.addEventListener('input', (e) => {
+      const v = Number(e.target.value) || 0;
+      currentScores[e.target.dataset.index] = v;
+      row.classList.toggle('score-row--pos', v > 0);
+      row.classList.toggle('score-row--neg', v < 0);
     });
   });
+}
+
+// ---------------- ROUND TABLES ----------------
+function applyCellTint(cell, value) {
+  if (value > 0) cell.classList.add('val-pos');
+  else if (value < 0) cell.classList.add('val-neg');
 }
 
 function updateHistory() {
@@ -169,7 +155,6 @@ function updateHistory() {
   rounds.forEach((scores, r) => {
     const row = historyTable.insertRow();
     row.insertCell().textContent = r + 1;
-
     players.forEach((_, i) => {
       const cell = row.insertCell();
       const value = scores[i] ?? 0;
@@ -180,19 +165,18 @@ function updateHistory() {
           totalScores[i] += newVal;
         });
       } else {
-        cell.textContent = value;
+        cell.textContent = (value > 0 ? '+' : '') + value;
+        applyCellTint(cell, value);
       }
-
       totalScores[i] += value;
     });
   });
 
-  // Total row
   const totalRow = historyTable.insertRow();
   totalRow.insertCell().textContent = 'Total';
   totalScores.forEach(sum => {
     const cell = totalRow.insertCell();
-    cell.textContent = sum;
+    cell.textContent = (sum > 0 ? '+' : '') + sum;
   });
 }
 
@@ -217,114 +201,61 @@ function updateMasterHistory() {
           historyLog[r][c] = newVal;
         });
       } else {
-        cell.textContent = value;
+        cell.textContent = (value > 0 ? '+' : '') + value;
+        applyCellTint(cell, value);
       }
     });
   });
 
-  // Total row
   const summaryRow = masterHistoryTable.insertRow();
   summaryRow.insertCell().textContent = 'Total';
   historyPlayers.forEach((_, c) => {
     const total = historyLog.reduce((sum, row) => sum + (row[c] ?? 0), 0);
     const cell = summaryRow.insertCell();
-    cell.textContent = total;
+    cell.textContent = (total > 0 ? '+' : '') + total;
+  });
+}
+
+// ---------------- CHARTS ----------------
+function buildCumulativeSeries(playerList, roundList) {
+  return playerList.map((name, i) => {
+    let cum = 0;
+    const values = [0];
+    roundList.forEach(r => {
+      cum += r[i] ?? 0;
+      values.push(cum);
+    });
+    return { name, values };
   });
 }
 
 function updateChart() {
-  if (!ctx) return;
-  const datasets = players.map((name, i) => {
-    let cum = 0;
-    const data = [{ x: 0, y: 0 }].concat(
-      rounds.map((r, idx) => {
-        cum += r[i] ?? 0;
-        return { x: idx + 1, y: cum };
-      })
-    );
-    return { label: name, data, borderColor: getPlayerColor(i), backgroundColor: getPlayerColor(i), tension: 0.5, pointRadius: 3, borderWidth: 2.5 };
-  });
-
-  if (chart) chart.destroy();
-  chart = new Chart(ctx, {
-    type: 'line',
-    data: { datasets },
-    options: {
-      interaction: { mode: 'index', intersect: false },
-      plugins: { tooltip: { itemSort: (a, b) => b.parsed.y - a.parsed.y } },
-      scales: { x: { type: 'linear', min: 0, max: rounds.length || 1 } },
-    },
-  });
+  if (!chartHost) return;
+  if (!players.length) {
+    chartHost.innerHTML = '<div class="chart-empty">Add players to start a chart.</div>';
+    return;
+  }
+  Rainfall.renderLineChart(
+    chartHost,
+    buildCumulativeSeries(players, rounds),
+    { xLabel: i => i === 0 ? 'Start' : 'R' + i, sortTooltip: 'desc', ariaLabel: 'Cumulative score by round' }
+  );
 }
 
 function updateMasterChart() {
-  if (!masterCtx) return;
-  const datasets = historyPlayers.map((name, c) => {
-    let cum = 0;
-    const data = [{ x: 0, y: 0 }].concat(
-      historyLog.map((r, i) => {
-        cum += r[c] ?? 0;
-        return { x: i + 1, y: cum };
-      })
-    );
-    return { label: name, data, borderColor: getPlayerColor(c), backgroundColor: getPlayerColor(c), tension: 0.5, pointRadius: 2, borderWidth: 2 };
-  });
-
-  if (masterChart) masterChart.destroy();
-  masterChart = new Chart(masterCtx, {
-    type: 'line',
-    data: { datasets },
-    options: {
-      interaction: { mode: 'index', intersect: false },
-      plugins: { tooltip: { itemSort: (a, b) => b.parsed.y - a.parsed.y } },
-      scales: { x: { type: 'linear', min: 0, max: historyLog.length || 1, title: { display: true, text: 'Rounds' } }, y: { title: { display: true, text: 'Cumulative Points' } } },
-      animation: { duration: 0 },
-    },
-  });
-}
-
-// ---------------- SELF-DRAW ANIMATION ----------------
-function playSelfDrawAnimation(btn) {
-  const rect = btn.getBoundingClientRect();
-  const ox = rect.left + rect.width / 2;
-  const oy = rect.top + rect.height / 2;
-
-  const TILES = [
-    '🀇','🀈','🀉','🀊','🀋','🀌','🀍','🀎','🀏', // characters
-    '🀐','🀑','🀒','🀓','🀔','🀕','🀖','🀗','🀘', // bamboo
-    '🀙','🀚','🀛','🀜','🀝','🀞','🀟','🀠','🀡', // circles
-    '🀀','🀁','🀂','🀃','🀄','🀅','🀆',           // winds + dragons
-  ];
-  const LABELS = ['自摸!', 'Self Draw!'];
-
-  btn.classList.add('sd-btn-flash');
-  btn.addEventListener('animationend', () => btn.classList.remove('sd-btn-flash'), { once: true });
-
-  for (let i = 0; i < 55; i++) {
-    const isLabel = i % 5 === 0;
-    const el = document.createElement('span');
-    el.className = 'sd-particle' + (isLabel ? ' is-label' : '');
-    el.textContent = isLabel
-      ? LABELS[Math.floor(Math.random() * LABELS.length)]
-      : TILES[Math.floor(Math.random() * TILES.length)];
-
-    const angle = Math.random() * 2 * Math.PI;
-    const dist  = 100 + Math.random() * 380;
-    const dx    = (Math.cos(angle) * dist).toFixed(1);
-    const dy    = (Math.sin(angle) * dist).toFixed(1);
-    const rot   = ((Math.random() - 0.5) * 900).toFixed(0);
-    const dur   = ((0.85 + Math.random() * 0.6) / 0.75).toFixed(2);
-    const delay = (Math.random() * 0.1).toFixed(3);
-    const size  = isLabel
-      ? (Math.random() < 0.4 ? 26 + Math.random() * 14 : 13 + Math.random() * 9).toFixed(0) + 'px'
-      : (24 + Math.random() * 16).toFixed(0) + 'px';
-
-    el.style.cssText = `left:${ox}px;top:${oy}px;--dx:${dx}px;--dy:${dy}px;--rot:${rot}deg;--dur:${dur}s;--delay:${delay}s;--size:${size};`;
-    document.body.appendChild(el);
-    setTimeout(() => el.remove(), (parseFloat(dur) + parseFloat(delay) + 0.1) * 1000);
+  if (!masterChartHost) return;
+  if (!historyPlayers.length) {
+    masterChartHost.innerHTML = '<div class="chart-empty">No history yet.</div>';
+    return;
   }
+  Rainfall.renderLineChart(
+    masterChartHost,
+    buildCumulativeSeries(historyPlayers, historyLog),
+    { xLabel: i => i === 0 ? 'Start' : 'R' + i, sortTooltip: 'desc', ariaLabel: 'Cumulative score across all games' }
+  );
 }
 
+// ---------------- DATALIST ----------------
 function updatePlayerDatalist() {
   const datalist = document.getElementById('playerSuggestions');
   if (!datalist) return;
@@ -394,6 +325,48 @@ function renderStatsTable(tableEl, playerList, roundList) {
     row.insertCell().textContent = `${s.selfDraws} (${pct}%)`;
     row.insertCell().textContent = s.losses;
   });
+}
+
+// ---------------- SELF-DRAW ANIMATION ----------------
+function playSelfDrawAnimation(btn) {
+  const rect = btn.getBoundingClientRect();
+  const ox = rect.left + rect.width / 2;
+  const oy = rect.top + rect.height / 2;
+
+  const TILES = [
+    '🀇','🀈','🀉','🀊','🀋','🀌','🀍','🀎','🀏',
+    '🀐','🀑','🀒','🀓','🀔','🀕','🀖','🀗','🀘',
+    '🀙','🀚','🀛','🀜','🀝','🀞','🀟','🀠','🀡',
+    '🀀','🀁','🀂','🀃','🀄','🀅','🀆',
+  ];
+  const LABELS = ['自摸!', 'Self Draw!'];
+
+  btn.classList.add('sd-btn-flash');
+  btn.addEventListener('animationend', () => btn.classList.remove('sd-btn-flash'), { once: true });
+
+  for (let i = 0; i < 55; i++) {
+    const isLabel = i % 5 === 0;
+    const el = document.createElement('span');
+    el.className = 'sd-particle' + (isLabel ? ' is-label' : '');
+    el.textContent = isLabel
+      ? LABELS[Math.floor(Math.random() * LABELS.length)]
+      : TILES[Math.floor(Math.random() * TILES.length)];
+
+    const angle = Math.random() * 2 * Math.PI;
+    const dist  = 100 + Math.random() * 380;
+    const dx    = (Math.cos(angle) * dist).toFixed(1);
+    const dy    = (Math.sin(angle) * dist).toFixed(1);
+    const rot   = ((Math.random() - 0.5) * 900).toFixed(0);
+    const dur   = ((0.85 + Math.random() * 0.6) / 0.75).toFixed(2);
+    const delay = (Math.random() * 0.1).toFixed(3);
+    const size  = isLabel
+      ? (Math.random() < 0.4 ? 26 + Math.random() * 14 : 13 + Math.random() * 9).toFixed(0) + 'px'
+      : (24 + Math.random() * 16).toFixed(0) + 'px';
+
+    el.style.cssText = `left:${ox}px;top:${oy}px;--dx:${dx}px;--dy:${dy}px;--rot:${rot}deg;--dur:${dur}s;--delay:${delay}s;--size:${size};`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), (parseFloat(dur) + parseFloat(delay) + 0.1) * 1000);
+  }
 }
 
 // ---------------- HELPERS ----------------
@@ -490,7 +463,7 @@ tabHistoryBtn?.addEventListener('click', () => {
   renderAll();
 });
 
-// ---------------- EDIT / SAVE HISTORY ----------------
+// ---------------- EDIT / SAVE ----------------
 editHistoryBtn?.addEventListener('click', () => { historyEditing = true; undoBtn.disabled = true; editHistoryBtn.style.display = 'none'; saveHistoryBtn.style.display = 'inline-block'; renderAll(); });
 saveHistoryBtn?.addEventListener('click', () => { historyEditing = false; undoBtn.disabled = false; editHistoryBtn.style.display = 'inline-block'; saveHistoryBtn.style.display = 'none'; renderAll(); syncToFirestore(); });
 
@@ -507,21 +480,25 @@ gameDoc.onSnapshot(doc => {
   if ((historyEditing || masterEditing) && undoSnapshot) return;
 
   players.splice(0, players.length, ...(d.players ?? []));
-
-  rounds.splice(
-    0,
-    rounds.length,
+  rounds.splice(0, rounds.length,
     ...(d.rounds ?? []).map(obj => players.map(p => (obj && p in obj ? Number(obj[p]) : 0)))
   );
-
   currentScores = players.map(() => 0);
 
   historyPlayers.splice(0, historyPlayers.length, ...(d.historyPlayers ?? []));
-  historyLog.splice(
-    0,
-    historyLog.length,
+  historyLog.splice(0, historyLog.length,
     ...(d.history ?? []).map(obj => historyPlayers.map(p => (obj && p in obj ? Number(obj[p]) : 0)))
   );
 
   renderAll();
+});
+
+// Re-render charts on resize (debounced)
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    try { updateChart(); } catch {}
+    try { updateMasterChart(); } catch {}
+  }, 120);
 });
