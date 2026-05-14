@@ -8,11 +8,16 @@
      [{ name: string, values: number[], color?: string }, ...]
 
    Options:
-     xLabel(i)       — label for x-axis tick i
+     xLabel(i)       — label for x-axis tick i (index into full series)
      formatValue(v)  — format y values (default: signed integer)
      sortTooltip     — 'desc' | 'asc' | 'none'
      palette         — override color array
      height          — chart height in px (default 280)
+
+   Double-click zoom:
+     1st dblclick → ±20 rounds around clicked point (if data allows)
+     2nd dblclick → ±5 rounds around clicked point (if data allows)
+     3rd dblclick → reset to full view
    ===================================================================== */
 
 (function () {
@@ -58,27 +63,54 @@
       return;
     }
 
-    const palette   = options.palette || DEFAULT_PALETTE;
-    const xLabel    = options.xLabel || ((i) => String(i));
-    const fmt       = options.formatValue || ((v) => (v > 0 ? '+' : '') + v);
-    const tension   = options.tension == null ? 0.5 : options.tension;
-    const sortMode  = options.sortTooltip || 'desc';
-    const xTitle    = options.xTitle || null;
-    const yTitle    = options.yTitle || null;
+    // Persist full series so zoom re-renders can use original data
+    host._chartSeries = series;
+    host._chartOpts   = opts;
 
+    const palette  = options.palette || DEFAULT_PALETTE;
+    const xLabel   = options.xLabel || ((i) => String(i));
+    const fmt      = options.formatValue || ((v) => (v > 0 ? '+' : '') + v);
+    const tension  = options.tension == null ? 0.5 : options.tension;
+    const sortMode = options.sortTooltip || 'desc';
+    const xTitle   = options.xTitle || null;
+    const yTitle   = options.yTitle || null;
+
+    // ---- ZOOM STATE (persists across re-renders) ----
+    if (!host._zoomState) host._zoomState = { level: 0, centerIdx: 0 };
+    const zoom = host._zoomState;
+
+    const fullN       = series[0].values.length;
+    const fullLastIdx = fullN - 1;
+
+    // Resolve visible index range for current zoom level
+    let loIdx = 0, hiIdx = fullLastIdx;
+    if (zoom.level === 1) {
+      loIdx = Math.max(0, zoom.centerIdx - 20);
+      hiIdx = Math.min(fullLastIdx, zoom.centerIdx + 20);
+      if (loIdx === 0 && hiIdx === fullLastIdx) zoom.level = 0; // not enough data
+    } else if (zoom.level === 2) {
+      loIdx = Math.max(0, zoom.centerIdx - 5);
+      hiIdx = Math.min(fullLastIdx, zoom.centerIdx + 5);
+      if (loIdx === 0 && hiIdx === fullLastIdx) zoom.level = 0;
+    }
+
+    // Build colour-assigned series, sliced to visible range
     const seriesC = series.map((s, i) => ({
-      name: s.name,
-      values: s.values,
-      color: s.color || palette[i % palette.length],
+      name:   s.name,
+      values: s.values.slice(loIdx, hiIdx + 1),
+      color:  s.color || palette[i % palette.length],
     }));
 
-    const N = seriesC[0].values.length;
+    const N       = seriesC[0].values.length;
     const lastIdx = N - 1;
+
+    // xLabel offset so labels show original round numbers when zoomed
+    const displayLabel = (i) => xLabel(i + loIdx);
 
     const hostW = host.clientWidth;
     const W = hostW > 8 ? hostW - 8 : 720;
     const H = options.height || 280;
-    const PAD = { l: 44, r: 20, t: 18, b: 30 };
+    const PAD    = { l: 44, r: 20, t: 18, b: 30 };
     const innerW = W - PAD.l - PAD.r;
     const innerH = H - PAD.t - PAD.b;
 
@@ -142,7 +174,7 @@
         'font-size': '11',
         'font-family': 'Nunito Sans, sans-serif',
       });
-      lbl.textContent = xLabel(i);
+      lbl.textContent = displayLabel(i);
       svg.appendChild(lbl);
     }
 
@@ -166,6 +198,20 @@
       });
       t.textContent = xTitle;
       svg.appendChild(t);
+    }
+
+    // Zoom level badge (top-right corner when zoomed)
+    if (zoom.level > 0) {
+      const badge = svgEl('text', {
+        x: W - PAD.r, y: PAD.t - 4,
+        'text-anchor': 'end',
+        fill: '#728383',
+        'font-size': '10',
+        'font-family': 'Nunito Sans, sans-serif',
+        opacity: '0.7',
+      });
+      badge.textContent = zoom.level === 1 ? '±20  ✕ to reset' : '±5  ✕ to reset';
+      svg.appendChild(badge);
     }
 
     const crosshair = svgEl('line', {
@@ -206,11 +252,12 @@
       return r;
     });
 
+    const zoneCursor = zoom.level === 2 ? 'zoom-out' : 'zoom-in';
     const zone = svgEl('rect', {
       x: PAD.l - 6, y: PAD.t,
       width: innerW + 12, height: innerH,
       fill: 'transparent',
-      style: 'cursor: crosshair;',
+      style: `cursor: ${zoneCursor};`,
     });
     svg.appendChild(zone);
 
@@ -236,7 +283,7 @@
       else if (sortMode === 'asc') rows.sort((a, b) => a.value - b.value);
 
       tooltip.innerHTML =
-        `<div class="chart-tooltip__title">${xLabel(i)}</div>` +
+        `<div class="chart-tooltip__title">${displayLabel(i)}</div>` +
         rows.map(r => {
           const cls = r.value > 0 ? 'pos' : r.value < 0 ? 'neg' : '';
           return `<div class="chart-tooltip__row">` +
@@ -271,104 +318,53 @@
     });
     zone.addEventListener('mouseleave', hideHover);
 
-    setupTouchZoom(host);
-  }
-
-  // ---------------- TOUCH ZOOM ----------------
-  // Uses viewBox manipulation so text stays crisp. Re-attaches on each render
-  // via AbortController so resize always resets zoom to fit the new width.
-  function setupTouchZoom(host) {
-    if (host._touchZoomCleanup) host._touchZoomCleanup();
-
+    // ---- DOUBLE-CLICK ZOOM ----
+    // Clean up previous listener before re-attaching
+    if (host._zoomCleanup) host._zoomCleanup();
     const ac = new AbortController();
-    const sig = ac.signal;
 
-    let scale = 1, panX = 0;
-    let pinchRef = null, panRef = null;
+    zone.addEventListener('dblclick', (e) => {
+      // Suppress text-selection on double-click
+      e.preventDefault();
 
-    function getSvg() { return host.querySelector('svg'); }
+      // Find clicked index in the VISIBLE range, then map to full-data index
+      const rect = host.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const ratio = host.clientWidth / W;
+      const dataX = mouseX / ratio;
+      const t = (dataX - PAD.l) / innerW;
+      const visibleIdx   = Math.max(0, Math.min(lastIdx, Math.round(t * lastIdx)));
+      const clickedFull  = loIdx + visibleIdx;
 
-    function origVb(svg) {
-      if (!svg.dataset.origW) {
-        const vb = svg.viewBox.baseVal;
-        svg.dataset.origW = vb.width;
-        svg.dataset.origH = vb.height;
+      // Level 2 → always reset to full view
+      if (zoom.level === 2) {
+        zoom.level = 0;
+        renderLineChart(host, host._chartSeries, host._chartOpts);
+        return;
       }
-      return { w: +svg.dataset.origW, h: +svg.dataset.origH };
-    }
 
-    function apply() {
-      const svg = getSvg();
-      if (!svg) return;
-      const b = origVb(svg);
-      const viewW = b.w / scale;
-      const clampedPan = Math.max(0, Math.min(b.w - viewW, panX));
-      svg.setAttribute('viewBox', `${clampedPan.toFixed(1)} 0 ${viewW.toFixed(1)} ${b.h}`);
-    }
+      // Level 0 → try ±20 first, fall back to ±5 if dataset is too small
+      // Level 1 → try ±5
+      const levelsToTry = zoom.level === 0 ? [1, 2] : [2];
 
-    function pinchDist(t) {
-      return Math.hypot(t[1].clientX - t[0].clientX, t[1].clientY - t[0].clientY);
-    }
-
-    host.addEventListener('touchstart', e => {
-      const t = e.touches;
-      if (t.length === 2) {
-        e.preventDefault();
-        const svg = getSvg();
-        if (!svg) return;
-        const rect = svg.getBoundingClientRect();
-        const b = origVb(svg);
-        const vb = svg.viewBox.baseVal;
-        const midClientX = (t[0].clientX + t[1].clientX) / 2;
-        const midFrac = Math.max(0, Math.min(1, (midClientX - rect.left) / rect.width));
-        const anchorSvgX = vb.x + midFrac * vb.width;
-        pinchRef = { dist: pinchDist(t), scale, panX, midFrac, anchorSvgX };
-        panRef = null;
-      } else if (t.length === 1) {
-        panRef = { clientX: t[0].clientX, panX };
-        pinchRef = null;
+      for (const lvl of levelsToTry) {
+        const range = lvl === 1 ? 20 : 5;
+        const lo = Math.max(0, clickedFull - range);
+        const hi = Math.min(fullLastIdx, clickedFull + range);
+        if (lo === 0 && hi === fullLastIdx) continue; // would show all data — try smaller range
+        zoom.level     = lvl;
+        zoom.centerIdx = clickedFull;
+        renderLineChart(host, host._chartSeries, host._chartOpts);
+        return;
       }
-    }, { passive: false, signal: sig });
-
-    host.addEventListener('touchmove', e => {
-      const t = e.touches;
-      if (t.length === 2 && pinchRef) {
-        e.preventDefault();
-        const svg = getSvg();
-        if (!svg) return;
-        const b = origVb(svg);
-        const newScale = Math.max(1, Math.min(10, pinchRef.scale * (pinchDist(t) / pinchRef.dist)));
-        const newViewW = b.w / newScale;
-        const newPanX = pinchRef.anchorSvgX - pinchRef.midFrac * newViewW;
-        scale = newScale;
-        panX = Math.max(0, Math.min(b.w - newViewW, newPanX));
-        apply();
-      } else if (t.length === 1 && panRef && scale > 1.05) {
-        e.preventDefault();
-        const svg = getSvg();
-        if (!svg) return;
-        const rect = svg.getBoundingClientRect();
-        const b = origVb(svg);
-        const viewW = b.w / scale;
-        const dxSvg = ((t[0].clientX - panRef.clientX) / rect.width) * viewW;
-        panX = Math.max(0, Math.min(b.w - viewW, panRef.panX - dxSvg));
-        apply();
+      // No level could reduce the view; reset if we were zoomed in
+      if (zoom.level > 0) {
+        zoom.level = 0;
+        renderLineChart(host, host._chartSeries, host._chartOpts);
       }
-    }, { passive: false, signal: sig });
+    }, { signal: ac.signal });
 
-    host.addEventListener('touchend', e => {
-      if (e.touches.length < 2) pinchRef = null;
-      if (e.touches.length === 0) {
-        panRef = null;
-        if (scale < 1.05) {
-          scale = 1; panX = 0;
-          const svg = getSvg();
-          if (svg) { const b = origVb(svg); svg.setAttribute('viewBox', `0 0 ${b.w} ${b.h}`); }
-        }
-      }
-    }, { passive: true, signal: sig });
-
-    host._touchZoomCleanup = () => ac.abort();
+    host._zoomCleanup = () => ac.abort();
   }
 
   window.Rainfall = window.Rainfall || {};
