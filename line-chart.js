@@ -166,18 +166,19 @@
       }));
     }
 
-    // Show at most 10 x-axis labels, evenly distributed across the visible range
-    const maxXLabels = 10;
-    const xLabelSet = new Set();
-    if (N <= maxXLabels) {
-      for (let i = 0; i < N; i++) xLabelSet.add(i);
-    } else {
-      for (let k = 0; k < maxXLabels; k++) {
-        xLabelSet.add(Math.round(k * lastIdx / (maxXLabels - 1)));
-      }
+    // X-axis labels: pick a step so labels never crowd each other.
+    // innerW is 1-to-1 with screen pixels (SVG renders at exactly W px wide),
+    // so we can reason directly in pixels.
+    const minLabelPx = 36; // minimum centre-to-centre spacing for legibility
+    const maxFitLabels = Math.max(2, Math.floor(innerW / minLabelPx));
+    let xStep = 1;
+    if (N > maxFitLabels) {
+      const raw = (N - 1) / (maxFitLabels - 1);
+      const nice = [1, 2, 5, 10, 15, 20, 25, 50, 100, 200, 500];
+      xStep = nice.find(s => s >= raw) || Math.ceil(raw);
     }
     for (let i = 0; i < N; i++) {
-      if (!xLabelSet.has(i)) continue;
+      if (i % xStep !== 0) continue;
       const lbl = svgEl('text', {
         x: xScale(i), y: H - 10,
         'text-anchor': 'middle',
