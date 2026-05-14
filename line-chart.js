@@ -166,7 +166,18 @@
       }));
     }
 
+    // Show at most 10 x-axis labels, evenly distributed across the visible range
+    const maxXLabels = 10;
+    const xLabelSet = new Set();
+    if (N <= maxXLabels) {
+      for (let i = 0; i < N; i++) xLabelSet.add(i);
+    } else {
+      for (let k = 0; k < maxXLabels; k++) {
+        xLabelSet.add(Math.round(k * lastIdx / (maxXLabels - 1)));
+      }
+    }
     for (let i = 0; i < N; i++) {
+      if (!xLabelSet.has(i)) continue;
       const lbl = svgEl('text', {
         x: xScale(i), y: H - 10,
         'text-anchor': 'middle',
@@ -224,6 +235,7 @@
     });
     svg.appendChild(crosshair);
 
+    const showDots = N <= 20;
     seriesC.forEach(s => {
       const pts = s.values.map((v, i) => ({ x: xScale(i), y: yScale(v) }));
       svg.appendChild(svgEl('path', {
@@ -234,12 +246,14 @@
         'stroke-linecap': 'round',
         'stroke-linejoin': 'round',
       }));
-      s.values.forEach((v, i) => {
-        svg.appendChild(svgEl('circle', {
-          cx: xScale(i), cy: yScale(v), r: '3',
-          fill: s.color,
-        }));
-      });
+      if (showDots) {
+        s.values.forEach((v, i) => {
+          svg.appendChild(svgEl('circle', {
+            cx: xScale(i), cy: yScale(v), r: '3',
+            fill: s.color,
+          }));
+        });
+      }
     });
 
     const rings = seriesC.map(s => {
