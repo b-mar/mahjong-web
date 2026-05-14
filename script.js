@@ -26,6 +26,7 @@ let historyEditing = false;
 
 let historyPlayers = [];
 let historyLog = [];
+let historyTimestamps = []; // ms epoch per round, parallel to historyLog
 let masterEditing = false;
 
 let undoSnapshot = null;
@@ -67,6 +68,7 @@ function takeUndoSnapshot() {
     currentScores: [...currentScores],
     historyPlayers: [...historyPlayers],
     historyLog: historyLog.map(r => [...r]),
+    historyTimestamps: [...historyTimestamps],
   };
 }
 
@@ -84,6 +86,7 @@ function restoreUndoSnapshot() {
 
   historyPlayers.splice(0, historyPlayers.length, ...undoSnapshot.historyPlayers);
   historyLog.splice(0, historyLog.length, ...undoSnapshot.historyLog.map(r => [...r]));
+  historyTimestamps.splice(0, historyTimestamps.length, ...(undoSnapshot.historyTimestamps ?? []));
 
   renderAll();
   syncToFirestore();
@@ -396,6 +399,29 @@ function computeStats(playerList, roundList) {
   });
 }
 
+function computeRoundsPlayed(playerIdx) {
+  const SIX_HOURS = 6 * 60 * 60 * 1000;
+  const played = new Set();
+
+  // Seed: rounds where this player has a non-zero score
+  historyLog.forEach((round, r) => {
+    if ((round[playerIdx] ?? 0) !== 0) played.add(r);
+  });
+
+  // Expand: for each seed round that has a timestamp, also mark all rounds
+  // within ±6 hours as played (same session inference)
+  [...played].forEach(r => {
+    const ts = historyTimestamps[r];
+    if (!ts) return;
+    historyLog.forEach((_, r2) => {
+      const ts2 = historyTimestamps[r2];
+      if (ts2 && Math.abs(ts2 - ts) <= SIX_HOURS) played.add(r2);
+    });
+  });
+
+  return played.size;
+}
+
 function renderStatsTable(tableEl, playerList, roundList, showRoundsPlayed) {
   if (!tableEl) return;
   tableEl.innerHTML = '';
@@ -422,10 +448,7 @@ function renderStatsTable(tableEl, playerList, roundList, showRoundsPlayed) {
     row.insertCell().textContent = `${s.selfDraws} (${pct}%)`;
     row.insertCell().textContent = s.losses;
     if (showRoundsPlayed) {
-      // A player participated in a round when their score is non-zero.
-      // Each round has exactly 4 players; non-participants always score 0.
-      const played = roundList.filter(r => (r[i] ?? 0) !== 0).length;
-      row.insertCell().textContent = played;
+      row.insertCell().textContent = computeRoundsPlayed(i);
     }
   });
 }
@@ -481,12 +504,14 @@ function appendCurrentRoundsToHistory() {
     }
   });
 
+  const sessionTs = Date.now();
   rounds.forEach(r => {
     const row = historyPlayers.map(() => 0);
     players.forEach((p, i) => {
       row[historyPlayers.indexOf(p)] = r[i] ?? 0;
     });
     historyLog.push(row);
+    historyTimestamps.push(sessionTs);
   });
 }
 
@@ -497,7 +522,8 @@ function syncToFirestore() {
       players,
       rounds: rounds.map(r => Object.fromEntries(players.map((p, i) => [p, r[i] ?? 0]))),
       historyPlayers,
-      history: historyLog.map(r => Object.fromEntries(historyPlayers.map((p, i) => [p, r[i] ?? 0])))
+      history: historyLog.map(r => Object.fromEntries(historyPlayers.map((p, i) => [p, r[i] ?? 0]))),
+      historyTimestamps: [...historyTimestamps]
     }, { merge: true });
   } catch (err) {
     console.error("Error syncing to Firestore:", err);
@@ -597,6 +623,7 @@ gameDoc.onSnapshot(doc => {
   historyLog.splice(0, historyLog.length,
     ...(d.history ?? []).map(obj => historyPlayers.map(p => (obj && p in obj ? Number(obj[p]) : 0)))
   );
+  historyTimestamps.splice(0, historyTimestamps.length, ...(d.historyTimestamps ?? []));
 
   renderAll();
 });
