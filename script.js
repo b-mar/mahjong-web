@@ -372,7 +372,7 @@ function renderAll() {
   if (roundNumSpan) roundNumSpan.textContent = rounds.length + 1;
   updateHistory();
   updateMasterHistory();
-  renderStatsTable(gameStatsTable, players, rounds);
+  renderStatsTable(gameStatsTable, players, rounds, true);
   renderStatsTable(masterStatsTable, historyPlayers, historyLog);
   updateHistoryStatCards();
   try { updateChart(); } catch (e) { console.error('chart error:', e); }
@@ -400,7 +400,7 @@ function computeStats(playerList, roundList) {
 }
 
 
-function renderStatsTable(tableEl, playerList, roundList) {
+function renderStatsTable(tableEl, playerList, roundList, showWinLossPct) {
   if (!tableEl) return;
   tableEl.innerHTML = '';
   if (!playerList.length) return;
@@ -413,16 +413,28 @@ function renderStatsTable(tableEl, playerList, roundList) {
     header.appendChild(th);
   });
 
+  const totalRounds = roundList.length;
+
   computeStats(playerList, roundList).forEach((s, i) => {
     if (s.wins === 0 && s.selfDraws === 0 && s.losses === 0) return;
     const row = tableEl.insertRow();
     const nameCell = row.insertCell();
     nameCell.textContent = playerList[i];
     nameCell.style.textAlign = 'left';
-    row.insertCell().textContent = s.wins;
-    const pct = s.wins > 0 ? Math.round((s.selfDraws / s.wins) * 100) : 0;
-    row.insertCell().textContent = `${s.selfDraws} (${pct}%)`;
-    row.insertCell().textContent = s.losses;
+
+    if (showWinLossPct && totalRounds > 0) {
+      const winPct  = Math.round((s.wins   / totalRounds) * 100);
+      const lossPct = Math.round((s.losses / totalRounds) * 100);
+      row.insertCell().textContent = `${s.wins} (${winPct}%)`;
+      const sdPct = s.wins > 0 ? Math.round((s.selfDraws / s.wins) * 100) : 0;
+      row.insertCell().textContent = `${s.selfDraws} (${sdPct}%)`;
+      row.insertCell().textContent = `${s.losses} (${lossPct}%)`;
+    } else {
+      row.insertCell().textContent = s.wins;
+      const sdPct = s.wins > 0 ? Math.round((s.selfDraws / s.wins) * 100) : 0;
+      row.insertCell().textContent = `${s.selfDraws} (${sdPct}%)`;
+      row.insertCell().textContent = s.losses;
+    }
   });
 }
 
