@@ -75,7 +75,8 @@
     const N = seriesC[0].values.length;
     const lastIdx = N - 1;
 
-    const W = 720;
+    const hostW = host.clientWidth;
+    const W = hostW > 8 ? hostW - 8 : 720;
     const H = options.height || 280;
     const PAD = { l: 44, r: 20, t: 18, b: 30 };
     const innerW = W - PAD.l - PAD.r;
@@ -274,24 +275,35 @@
   }
 
   // ---------------- TOUCH ZOOM ----------------
-  // Attaches once per host; subsequent renderLineChart calls re-use the listeners.
-  // Pinch zooms the x-axis; single-finger pans when zoomed in.
+  // Uses viewBox manipulation so text stays crisp. Re-attaches on each render
+  // via AbortController so resize always resets zoom to fit the new width.
   function setupTouchZoom(host) {
-    if (host._touchZoomActive) return;
-    host._touchZoomActive = true;
+    if (host._touchZoomCleanup) host._touchZoomCleanup();
 
-    let scale = 1, offsetX = 0;
+    const ac = new AbortController();
+    const sig = ac.signal;
+
+    let scale = 1, panX = 0;
     let pinchRef = null, panRef = null;
 
     function getSvg() { return host.querySelector('svg'); }
 
+    function origVb(svg) {
+      if (!svg.dataset.origW) {
+        const vb = svg.viewBox.baseVal;
+        svg.dataset.origW = vb.width;
+        svg.dataset.origH = vb.height;
+      }
+      return { w: +svg.dataset.origW, h: +svg.dataset.origH };
+    }
+
     function apply() {
       const svg = getSvg();
       if (!svg) return;
-      const maxNeg = -(scale - 1) * host.clientWidth;
-      const tx = Math.max(maxNeg, Math.min(0, offsetX));
-      svg.style.transformOrigin = 'left top';
-      svg.style.transform = scale === 1 ? '' : `translateX(${tx}px) scaleX(${scale})`;
+      const b = origVb(svg);
+      const viewW = b.w / scale;
+      const clampedPan = Math.max(0, Math.min(b.w - viewW, panX));
+      svg.setAttribute('viewBox', `${clampedPan.toFixed(1)} 0 ${viewW.toFixed(1)} ${b.h}`);
     }
 
     function pinchDist(t) {
@@ -301,38 +313,62 @@
     host.addEventListener('touchstart', e => {
       const t = e.touches;
       if (t.length === 2) {
-        const rect = host.getBoundingClientRect();
-        pinchRef = { dist: pinchDist(t), scale, offsetX,
-                     midX: (t[0].clientX + t[1].clientX) / 2 - rect.left };
+        e.preventDefault();
+        const svg = getSvg();
+        if (!svg) return;
+        const rect = svg.getBoundingClientRect();
+        const b = origVb(svg);
+        const vb = svg.viewBox.baseVal;
+        const midClientX = (t[0].clientX + t[1].clientX) / 2;
+        const midFrac = Math.max(0, Math.min(1, (midClientX - rect.left) / rect.width));
+        const anchorSvgX = vb.x + midFrac * vb.width;
+        pinchRef = { dist: pinchDist(t), scale, panX, midFrac, anchorSvgX };
         panRef = null;
       } else if (t.length === 1) {
-        panRef = { x: t[0].clientX, offsetX };
+        panRef = { clientX: t[0].clientX, panX };
         pinchRef = null;
       }
-    }, { passive: true });
+    }, { passive: false, signal: sig });
 
     host.addEventListener('touchmove', e => {
       const t = e.touches;
       if (t.length === 2 && pinchRef) {
         e.preventDefault();
+        const svg = getSvg();
+        if (!svg) return;
+        const b = origVb(svg);
         const newScale = Math.max(1, Math.min(10, pinchRef.scale * (pinchDist(t) / pinchRef.dist)));
-        offsetX = pinchRef.midX - (pinchRef.midX - pinchRef.offsetX) * (newScale / pinchRef.scale);
+        const newViewW = b.w / newScale;
+        const newPanX = pinchRef.anchorSvgX - pinchRef.midFrac * newViewW;
         scale = newScale;
+        panX = Math.max(0, Math.min(b.w - newViewW, newPanX));
         apply();
       } else if (t.length === 1 && panRef && scale > 1.05) {
         e.preventDefault();
-        offsetX = panRef.offsetX + (t[0].clientX - panRef.x);
+        const svg = getSvg();
+        if (!svg) return;
+        const rect = svg.getBoundingClientRect();
+        const b = origVb(svg);
+        const viewW = b.w / scale;
+        const dxSvg = ((t[0].clientX - panRef.clientX) / rect.width) * viewW;
+        panX = Math.max(0, Math.min(b.w - viewW, panRef.panX - dxSvg));
         apply();
       }
-    }, { passive: false });
+    }, { passive: false, signal: sig });
 
     host.addEventListener('touchend', e => {
       if (e.touches.length < 2) pinchRef = null;
       if (e.touches.length === 0) {
         panRef = null;
-        if (scale < 1.05) { scale = 1; offsetX = 0; apply(); }
+        if (scale < 1.05) {
+          scale = 1; panX = 0;
+          const svg = getSvg();
+          if (svg) { const b = origVb(svg); svg.setAttribute('viewBox', `0 0 ${b.w} ${b.h}`); }
+        }
       }
-    }, { passive: true });
+    }, { passive: true, signal: sig });
+
+    host._touchZoomCleanup = () => ac.abort();
   }
 
   window.Rainfall = window.Rainfall || {};
