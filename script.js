@@ -373,7 +373,7 @@ function renderAll() {
   updateHistory();
   updateMasterHistory();
   renderStatsTable(gameStatsTable, players, rounds);
-  renderStatsTable(masterStatsTable, historyPlayers, historyLog, true);
+  renderStatsTable(masterStatsTable, historyPlayers, historyLog);
   updateHistoryStatCards();
   try { updateChart(); } catch (e) { console.error('chart error:', e); }
   try { updateMasterChart(); } catch (e) { console.error('masterChart error:', e); }
@@ -399,38 +399,14 @@ function computeStats(playerList, roundList) {
   });
 }
 
-function computeRoundsPlayed(playerIdx) {
-  const SIX_HOURS = 6 * 60 * 60 * 1000;
-  const played = new Set();
 
-  // Seed: rounds where this player has a non-zero score
-  historyLog.forEach((round, r) => {
-    if ((round[playerIdx] ?? 0) !== 0) played.add(r);
-  });
-
-  // Expand: for each seed round that has a timestamp, also mark all rounds
-  // within ±6 hours as played (same session inference)
-  [...played].forEach(r => {
-    const ts = historyTimestamps[r];
-    if (!ts) return;
-    historyLog.forEach((_, r2) => {
-      const ts2 = historyTimestamps[r2];
-      if (ts2 && Math.abs(ts2 - ts) <= SIX_HOURS) played.add(r2);
-    });
-  });
-
-  return played.size;
-}
-
-function renderStatsTable(tableEl, playerList, roundList, showRoundsPlayed) {
+function renderStatsTable(tableEl, playerList, roundList) {
   if (!tableEl) return;
   tableEl.innerHTML = '';
   if (!playerList.length) return;
 
   const header = tableEl.insertRow();
-  const headers = ['Player', 'Wins', 'Self-Draws', 'Losses'];
-  if (showRoundsPlayed) headers.push('Rounds Played');
-  headers.forEach((label, i) => {
+  ['Player', 'Wins', 'Self-Draws', 'Losses'].forEach((label, i) => {
     const th = document.createElement('th');
     th.textContent = label;
     if (i === 0) th.style.textAlign = 'left';
@@ -447,9 +423,6 @@ function renderStatsTable(tableEl, playerList, roundList, showRoundsPlayed) {
     const pct = s.wins > 0 ? Math.round((s.selfDraws / s.wins) * 100) : 0;
     row.insertCell().textContent = `${s.selfDraws} (${pct}%)`;
     row.insertCell().textContent = s.losses;
-    if (showRoundsPlayed) {
-      row.insertCell().textContent = computeRoundsPlayed(i);
-    }
   });
 }
 
