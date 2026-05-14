@@ -370,7 +370,7 @@ function renderAll() {
   updateHistory();
   updateMasterHistory();
   renderStatsTable(gameStatsTable, players, rounds);
-  renderStatsTable(masterStatsTable, historyPlayers, historyLog);
+  renderStatsTable(masterStatsTable, historyPlayers, historyLog, true);
   updateHistoryStatCards();
   try { updateChart(); } catch (e) { console.error('chart error:', e); }
   try { updateMasterChart(); } catch (e) { console.error('masterChart error:', e); }
@@ -396,13 +396,15 @@ function computeStats(playerList, roundList) {
   });
 }
 
-function renderStatsTable(tableEl, playerList, roundList) {
+function renderStatsTable(tableEl, playerList, roundList, showRoundsPlayed) {
   if (!tableEl) return;
   tableEl.innerHTML = '';
   if (!playerList.length) return;
 
   const header = tableEl.insertRow();
-  ['Player', 'Wins', 'Self-Draws', 'Losses'].forEach((label, i) => {
+  const headers = ['Player', 'Wins', 'Self-Draws', 'Losses'];
+  if (showRoundsPlayed) headers.push('Rounds Played');
+  headers.forEach((label, i) => {
     const th = document.createElement('th');
     th.textContent = label;
     if (i === 0) th.style.textAlign = 'left';
@@ -419,6 +421,12 @@ function renderStatsTable(tableEl, playerList, roundList) {
     const pct = s.wins > 0 ? Math.round((s.selfDraws / s.wins) * 100) : 0;
     row.insertCell().textContent = `${s.selfDraws} (${pct}%)`;
     row.insertCell().textContent = s.losses;
+    if (showRoundsPlayed) {
+      // A player participated in a round when their score is non-zero.
+      // Each round has exactly 4 players; non-participants always score 0.
+      const played = roundList.filter(r => (r[i] ?? 0) !== 0).length;
+      row.insertCell().textContent = played;
+    }
   });
 }
 
